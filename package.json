@@ -1,0 +1,48 @@
+{
+    "name": "autopcr_web",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build --mode production",
+        "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "@chakra-ui/icons": "^2.1.1",
+        "@chakra-ui/react": "^2.8.2",
+        "@chakra-ui/theme-tools": "^2.1.2",
+        "@chakra-ui/utils": "^2.0.14",
+        "@ebay/nice-modal-react": "^1.2.13",
+        "@emotion/react": "^11.11.4",
+        "@emotion/styled": "^11.11.0",
+        "@tanstack/react-router": "^1.19.2",
+        "@tanstack/router-devtools": "^1.19.2",
+        "@tanstack/router-vite-plugin": "^1.19.2",
+        "@types/node": "^20.11.25",
+        "axios": "^1.6.7",
+        "eslint-plugin-react": "^7.34.0",
+        "framer-motion": "^11.0.8",
+        "javascript-obfuscator": "^4.1.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "react-geetest": "^5.0.1",
+        "react-hook-form": "^7.51.0",
+        "react-icons": "^5.0.1",
+        "rollup-plugin-obfuscator": "^1.1.0",
+        "rollup-plugin-visualizer": "^5.12.0"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.64",
+        "@types/react-dom": "^18.2.21",
+        "@typescript-eslint/eslint-plugin": "^6.21.0",
+        "@typescript-eslint/parser": "^6.21.0",
+        "@vitejs/plugin-react": "^4.2.1",
+        "eslint": "^8.57.0",
+        "eslint-plugin-react-hooks": "^4.6.0",
+        "eslint-plugin-react-refresh": "^0.4.5",
+        "typescript": "^5.4.2",
+        "vite": "^5.1.5"
+    }
+}
