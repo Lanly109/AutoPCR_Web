@@ -1,0 +1,40 @@
+name: release
+
+on:
+  push:
+    paths:
+      - 'src/**'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      uses: wyvox/action-setup-pnpm@v3
+
+    - name: Build React App
+      run: pnpm run build
+
+    - uses: nyaa8/package-version@v1
+      with:
+        path: 'package.json' 
+        follow-symlinks: 'false' 
+
+    - name: Zip dist
+      run: zip -r web.zip ./dist/*
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: ${{ env.PACKAGE_VERSION }}
+        tag_name: ${{ env.PACKAGE_VERSION }}
+        files: "web.zip"
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
