@@ -109,17 +109,17 @@ function ConfigSingle({ alias, value, info }: ConfigProps) {
 function ConfigMulti({ alias, value, info }: ConfigProps) {
     const toast = useToast();
     const onChange = (value: (string | number)[]) => {
-        const intValue = value.map(option => Number(option))
+        let postValue = value;
+        const intValue = postValue.map(option => Number(option))
         if (intValue.length != 0 && !isNaN(intValue[0]))
-            value = intValue;
+            postValue = intValue;
 
-        putAccountConfig(alias, info.key, value as ConfigValue).then((res) => {
+        putAccountConfig(alias, info.key, postValue as ConfigValue).then((res) => {
             toast({ status: 'success', title: '保存成功', description: res });
         }).catch((err: AxiosError) => {
             toast({ status: 'error', title: '保存失败', description: err.response?.data as string || "网络错误" });
         });
     }
-
     return (
         <InputGroup>
             <InputLeftAddon style={{ height: 'auto' }}>
@@ -127,11 +127,11 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
             </InputLeftAddon>
 
             <Box paddingLeft="16px" paddingRight="32px" overflowY="scroll" borderWidth="1px" borderColor={useColorModeValue("gray.200", "gray.600")} borderRadius="md">
-                <CheckboxGroup onChange={onChange} defaultValue={value as (string | number)[]} >
+                <CheckboxGroup onChange={onChange} defaultValue={(value as (string | number)[]).map(option => String(option))} >
                     <Stack spacing={[1, 5]} direction={['column', 'row']}>
                         {
                             info.candidates.map((element) => {
-                                return <Checkbox key={element as string | number} value={element as string | number} >{element}</Checkbox>
+                                return <Checkbox key={element as string | number} value={String(element) as string | number} >{element}</Checkbox>
                             })
                         }
                     </Stack>
