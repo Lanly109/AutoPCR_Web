@@ -90,7 +90,7 @@ export default function LoginWithPasswordComponent() {
                         <FormLabel>密码</FormLabel>
                         <Input type="password"
                             {...register('password')}
-                            placeholder='8位以上'
+                            placeholder='8位以上,非QQ密码'
                             defaultValue={localStorage.getItem('password') as (string | undefined)}
                         />
                         <FormErrorMessage>
