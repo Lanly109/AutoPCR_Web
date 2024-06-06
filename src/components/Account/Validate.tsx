@@ -63,7 +63,7 @@ export default function Validate({ id, userid, gt, challenge, onClose }: Validat
             width="300px"
             captch_type={1}
             gs={1}
-            offline={true}
+            offline={false}
         />
     );
 }
