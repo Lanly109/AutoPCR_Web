@@ -31,7 +31,7 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
     const handleExecute = () => {
         toast({ status: 'info', title: '开始执行' + info?.name + "..." });
         onOpen();
-        postAccountAreaSingle(alias, info?.key).then(async (res) => {
+        postAccountAreaSingle(alias, info?.key, info?.text_result).then(async (res) => {
             toast({ status: 'success', title: '执行成功' });
             onClose();
             if (info?.text_result) {
@@ -49,7 +49,7 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
     const handleResult = () => {
         toast({ status: 'info', title: `正在获取${info?.name}的结果` });
         onOpen();
-        getAccountAreaSingleResult(alias, info?.key).then(async (res) => {
+        getAccountAreaSingleResult(alias, info?.key, info?.text_result).then(async (res) => {
             onClose();
             if (info?.text_result) {
                 await NiceModal.show(DailyResultModal, { alias: alias, result: res });
@@ -67,7 +67,9 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
             <CardHeader>
                 <Flex>
                     <Checkbox defaultChecked={config.get(info?.key) as boolean} onChange={onChange}>
-                        <Heading size='md'>{info?.name} {info?.stamina_relative && <Tag>体力相关</Tag>}</Heading>
+                        <Heading size='md'>{info?.name} {
+                            info?.tags.map(item => <Tag key={item}>{item}</Tag>)
+                        }</Heading>
                     </Checkbox>
                     <Spacer />
                     <HStack>

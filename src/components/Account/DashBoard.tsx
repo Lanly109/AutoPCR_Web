@@ -28,7 +28,7 @@ import {
 } from '@chakra-ui/react'
 
 import { Route as DashBoardRoute } from "@routes/daily/_sidebar/account/index";
-import { FiActivity, FiAlertCircle, FiCheckCircle, FiCopy, FiSettings, FiTarget, FiUser } from 'react-icons/fi';
+import { FiActivity, FiAlertCircle, FiCheckCircle, FiXCircle, FiCopy, FiSettings, FiTarget, FiUser } from 'react-icons/fi';
 import { delAccount, postAccount, postAccountAreaDaily } from '@api/Account';
 import { useDisclosure } from '@chakra-ui/react'
 import { Link } from '@tanstack/react-router';
@@ -70,6 +70,23 @@ export function DashBoard() {
 
     };
 
+    const updateAccountInfo = (updatedAccount: AccountInfoInterface) => {
+        setUserInfo((prevUserInfo) => {
+            if (!prevUserInfo?.accounts) {
+                return prevUserInfo;
+            }
+
+            const updatedAccounts = prevUserInfo.accounts.map(account =>
+                account.name === updatedAccount.name ? updatedAccount : account
+            );
+
+            return {
+                ...prevUserInfo,
+                accounts: updatedAccounts,
+            };
+        });
+    };
+
     const handleCleanDailyAll = () => {
         for (const fn of handle.values()) {
             fn();
@@ -109,7 +126,7 @@ export function DashBoard() {
                     <SimpleGrid spacing={4} templateColumns='repeat(auto-fill, minmax(300px, 1fr))'>
                         {
                             userInfo?.accounts?.map((account) => {
-                                return <AccountInfo key={account.name} account={account} onToggle={freshAccountInfo.onToggle} increaseCount={increaseCount} decreaseCount={decreaseCount} />
+                                return <AccountInfo key={account.name} account={account} onToggle={freshAccountInfo.onToggle} increaseCount={increaseCount} decreaseCount={decreaseCount} updateAccountInfo={updateAccountInfo} />
                             })
                         }
                     </SimpleGrid>
@@ -124,9 +141,10 @@ interface AccountInfoProps {
     onToggle: () => void
     increaseCount: () => void
     decreaseCount: () => void
+    updateAccountInfo: (updatedAccount: AccountInfoInterface) => void
 }
 
-function AccountInfo({ account, onToggle, increaseCount, decreaseCount }: AccountInfoProps) {
+function AccountInfo({ account, onToggle, increaseCount, decreaseCount, updateAccountInfo }: AccountInfoProps) {
     const toast = useToast();
     const buttomLoading = useDisclosure();
     const alias = account.name;
@@ -137,11 +155,11 @@ function AccountInfo({ account, onToggle, increaseCount, decreaseCount }: Accoun
         buttomLoading.onOpen();
         increaseCount();
         toast({ status: 'info', title: `开始为${alias}清理日常...` });
-        postAccountAreaDaily(alias).then(async (res) => {
+        postAccountAreaDaily(alias).then((res) => {
             toast({ status: 'success', title: `${alias}清日常成功` });
             buttomLoading.onClose();
             decreaseCount();
-            await NiceModal.show(DailyResultModal, { alias: alias, resultUrl: res });
+            updateAccountInfo(res);
         }).catch((err: AxiosError) => {
             buttomLoading.onClose();
             decreaseCount();
@@ -192,7 +210,7 @@ function AccountInfo({ account, onToggle, increaseCount, decreaseCount }: Accoun
                 </Flex>
             </CardHeader>
             <CardBody>
-                最近清日常： {account.daily_clean_time.status == "success" ? "✓" : "×"}{account.daily_clean_time.time}
+                最近清日常： {account.daily_clean_time.status == "成功" ? "✓" : account.daily_clean_time.status == "警告" ? "!" : "×"}{account.daily_clean_time.time}
             </CardBody>
             <CardFooter>
                 <SimpleGrid columns={2} spacing={4}>
@@ -208,7 +226,7 @@ function AccountInfo({ account, onToggle, increaseCount, decreaseCount }: Accoun
                         <MenuList>
                             {
                                 account.daily_clean_time_list.map((dailyResult, index) => (
-                                    <MenuItem key={index} onClick={() => handleDailyResult(dailyResult.time_safe)}>{dailyResult.status == "success" ? <FiCheckCircle /> : <FiAlertCircle />}{dailyResult.time}</MenuItem>
+                                    <MenuItem key={index} onClick={() => handleDailyResult(dailyResult.time_safe)}>{dailyResult.status == "成功" ? <FiCheckCircle /> : dailyResult.status == "警告" ? <FiAlertCircle /> : <FiXCircle />}{dailyResult.time}</MenuItem>
                                 ))
                             }
                         </MenuList>

@@ -35,9 +35,9 @@ export interface ModuleInfo {
 	*/
 	config: Map<string, ConfigInfo>;
 	/**
-	* 模块是否改动体力
+	* 模块标签
 	*/
-	stamina_relative: boolean;
+	tags: string[];
 	/**
 	* 模块是否实现
 	*/

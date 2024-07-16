@@ -5,7 +5,11 @@ import path from 'path'
 import { visualizer } from "rollup-plugin-visualizer";
 import { splitVendorChunkPlugin } from 'vite'
 import obfuscator from 'rollup-plugin-obfuscator';
+import { resolve } from 'path';
+import { readFileSync } from 'fs';
+import envCompatible from 'vite-plugin-env-compatible';
 
+const version: string = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')).version;
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -18,6 +22,9 @@ export default defineConfig({
       },
     },
   },
+  define: {
+	'process.env.REACT_APP_VERSION': JSON.stringify(version),
+  },
   plugins: [
 	react(),
 	TanStackRouterVite(),
@@ -25,6 +32,7 @@ export default defineConfig({
 	visualizer({
       open: true,
     }),
+	envCompatible(),
 	obfuscator({
       global:false,
       options: {

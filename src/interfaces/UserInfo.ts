@@ -44,7 +44,7 @@ export interface DailyResult {
   /**
    * 清日常状态
    */
-  status: "success" | "skip" | "error";
+  status: "成功" | "警告" | "错误";
 }
 
 export interface LoginLog {

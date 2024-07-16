@@ -2,7 +2,7 @@ import { API } from '@api/APIUtils';
 import { AccountResponse, ValidateResponse } from '@interfaces/Account';
 import { DefaultResponse } from '@interfaces/DefaultResponse';
 import { ConfigInfo, ConfigValue, ModuleInfo, ModuleResponse } from '@interfaces/Module';
-import { UserInfoResponse } from '@interfaces/UserInfo';
+import { AccountInfo, UserInfoResponse } from '@interfaces/UserInfo';
 
 export async function getUserInfo() {
   const response = await API.get<UserInfoResponse>('/account');
@@ -66,45 +66,49 @@ export async function putAccountConfig(alias: string, key: string, value: Config
 }
 
 export async function postAccountAreaDaily(alias: string) {
-  const response = await API.post<Blob>(`/account/${alias}/do_daily`, {}, {
-    timeout: 2 * 60 * 1000,
-    responseType: "blob"
+  const response = await API.post<AccountInfo>(`/account/${alias}/do_daily`, {}, {
+    timeout: 4 * 60 * 1000,
   });
-  const imageUrl = window.URL.createObjectURL(response.data);
-  return imageUrl
+  return response.data;
 }
 
-export async function postAccountAreaSingle(alias: string, module: string) {
-  const response = await API.post<Blob>(`/account/${alias}/do_single`, {
+export async function postAccountAreaSingle(alias: string, module: string, text: boolean) {
+  const response = await API.post<Blob>(`/account/${alias}/do_single?text=${text}`, {
     order: module
   }, {
-    timeout: 60 * 1000,
+    timeout: 4 * 60 * 1000,
     responseType: "blob"
   });
-  const contentType: string | undefined = response.headers['content-type'] as string;
-  if (contentType && contentType.startsWith('image/')) {
+  if (text) {
+    return await response.data.text();
+  } else{
     const imageUrl = window.URL.createObjectURL(response.data);
     return imageUrl
-  } else
-    return await response.data.text();
+  }
 }
 
 export async function getAccountDailyResult(alias: string, time: string) {
   const response = await API.get<Blob>(`/account/${alias}/daily_result/${time}`,
-    { responseType: "blob" });
+    { 
+		responseType: "blob",
+		timeout: 1 * 60 * 1000
+  });
   const imageUrl = window.URL.createObjectURL(response.data);
   return imageUrl
 }
 
-export async function getAccountAreaSingleResult(alias: string, module: string) {
-  const response = await API.get<Blob>(`/account/${alias}/single_result/${module}`,
-    { responseType: "blob" });
-  const contentType: string | undefined = response.headers['content-type'] as string;
-  if (contentType && contentType.startsWith('image/')) {
+export async function getAccountAreaSingleResult(alias: string, module: string, text: boolean) {
+  const response = await API.get<Blob>(`/account/${alias}/single_result/${module}?text=${text}`,
+    { 
+		responseType: "blob",
+		timeout: 1 * 60 * 1000
+  });
+  if (text) {
+    return await response.data.text();
+  } else{
     const imageUrl = window.URL.createObjectURL(response.data);
     return imageUrl
-  } else
-    return await response.data.text();
+  }
 }
 
 export async function getAccountValidate(alias: string) {

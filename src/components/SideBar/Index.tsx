@@ -11,6 +11,7 @@ import {
     Image,
     createStandaloneToast,
     useTheme,
+    Text,
 } from '@chakra-ui/react'
 import {
     FiHome,
@@ -82,12 +83,16 @@ export default function Nav() {
         })
     }
 
+    const version = process.env.REACT_APP_VERSION;
+
     return (
         <>
             <Box position="fixed" top={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={4}>
                 <Flex h={16} alignItems={'center'} justifyContent={'space-between'}>
                     <Box>
-                        <Image src={autopcr} alt="autopcr" style={{ width: "50px", height: "50px" }} />
+                        <Link to={InfoRoute.to}>
+                            <Image src={autopcr} alt="autopcr" style={{ width: "50px", height: "50px" }} />
+                        </Link>
                     </Box>
                     <HStack as={'nav'} spacing={4}>
                         <NavItem key="dashboard" href={InfoRoute.to} icon={FiHome} >
@@ -108,8 +113,14 @@ export default function Nav() {
                 </Flex>
             </Box>
 
-            <Box p={4} marginTop={16}>
+            <Box p={4} marginTop={16} marginBottom={16}>
                 <Outlet />
+            </Box>
+
+            <Box position="fixed" bottom={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={4} textAlign='right'>
+                <Text fontSize="sm" color="gray.500">
+                    Powered by <a href="https://github.com/cc004/autopcr">AutoPCR</a> <a href="https://github.com/Lanly109/AutoPCR_Web">AutoPCR_Web</a>：{version}
+                </Text>
             </Box>
         </>
     )
