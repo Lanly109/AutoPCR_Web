@@ -12,6 +12,14 @@ export interface AccountResponse {
    */
   password: string;
   /**
+   * 渠道类型 
+   */
+  channel: string;
+  /**
+   * 渠道选项
+   */
+  channel_option: string[];
+  /**
    * 功能类型 
    */
   area: AreaInfo[];

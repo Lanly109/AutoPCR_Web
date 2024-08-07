@@ -6,6 +6,7 @@ import {
     FormLabel,
     Heading,
     Input,
+    Select,
     Stack,
     useColorModeValue,
     useToast,
@@ -16,6 +17,7 @@ import { AxiosError } from 'axios'
 interface Inputs {
     username: string
     password: string
+    channel: string
 }
 
 interface InfoProps {
@@ -32,7 +34,7 @@ export default function Info({ accountInfo }: InfoProps) {
     const toast = useToast();
 
     const handleSave: SubmitHandler<Inputs> = (values) => {
-        putAccount(accountInfo?.alias, values.username, values.password)
+        putAccount(accountInfo?.alias, values.username, values.password, values.channel)
             .then((res) => {
                 toast({ title: '保存成功', description: res, status: 'success', });
             })
@@ -74,6 +76,19 @@ export default function Info({ accountInfo }: InfoProps) {
                             {...register('password')}
                             defaultValue={accountInfo?.password || ""}
                         />
+                    </FormControl>
+                    <FormControl id="channel" isRequired>
+                        <FormLabel>平台</FormLabel>
+                        <Select
+                            defaultValue={accountInfo?.channel}
+                            {...register('channel')}
+                        >
+                            {
+                                accountInfo?.channel_option.map((option) => {
+                                    return <option key={option} value={option}>{option}</option>
+                                })
+                            }
+                        </Select>
                     </FormControl>
                     <Button
                         bg={'blue.400'}
