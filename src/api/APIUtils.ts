@@ -8,6 +8,7 @@ export const API = axios.create({
 	withCredentials: true,
 	headers: {
 		'Content-Type': 'application/json',
+		'X-APP-Version': APP_VERSION,
 	},
 });
 

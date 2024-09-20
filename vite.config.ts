@@ -23,7 +23,7 @@ export default defineConfig({
     },
   },
   define: {
-	'process.env.REACT_APP_VERSION': JSON.stringify(version),
+	'APP_VERSION': JSON.stringify(version),
   },
   plugins: [
 	react(),
@@ -32,7 +32,9 @@ export default defineConfig({
 	visualizer({
       open: true,
     }),
-	envCompatible(),
+	envCompatible({
+		mountedPath: 'process.env',
+	}),
 	obfuscator({
       global:false,
       options: {
