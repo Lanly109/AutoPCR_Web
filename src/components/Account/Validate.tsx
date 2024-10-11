@@ -25,7 +25,7 @@ export function QueryValidate(toast: ReturnType<typeof useToast>, alias: string,
         toast({ status: 'error', title: '验证查询超时' });
         return;
     }
-    getAccountValidate(alias).then(async (res) => {
+    getAccountValidate().then(async (res) => {
         if (res.status === 'empty') {
             setTimeout(QueryValidate, 1000, toast, alias, left_cnt - 1);
         } else if (res.status == "ok") {

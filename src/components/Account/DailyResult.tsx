@@ -1,3 +1,4 @@
+import { Fetch } from '@api/APIUtils'
 import { ModuleResult as ModuleResultInterface, ModuleResultResponse } from '@/interfaces/ModuleResult'
 import {
     Table,
@@ -9,20 +10,38 @@ import {
     TableContainer,
     useColorModeValue,
     TableRowProps,
+    useToast,
 } from '@chakra-ui/react'
+import { useEffect, useState } from 'react'
+import { AxiosError } from 'axios'
 
-export interface DailyResultProps {
-    resultData: ModuleResultResponse
+interface DailyResultProps {
+    resultData: ModuleResultResponse | null
 }
 interface ModuleResultProps extends TableRowProps {
     resultData: ModuleResultInterface
     index: number
 }
 
-export function DailyResultTable({ resultData }: DailyResultProps) {
+export function DailyResult({ url }: { url: string }) {
+    const toast = useToast();
+    const [resultData, setResultData] = useState<ModuleResultResponse | null>(null)
+    useEffect(() => {
+        Fetch.get<ModuleResultResponse>(url).then((response) => {
+            setResultData(response.data)
+        }).catch((error: AxiosError) => {
+            toast({ status: 'error', title: '获取日常结果失败', description: error.response?.data as string || "网络错误" });
+        });
+    }, [url, toast]);
+    return (
+        <DailyResultTable resultData={resultData} />
+    )
+}
+
+function DailyResultTable({ resultData }: DailyResultProps) {
     return (
         <TableContainer rounded={'lg'} bg={useColorModeValue('white', 'gray.700')} boxShadow={'lg'}>
-            <Table variant='striped' colorScheme='teal'>
+            <Table size='sm' variant='striped' colorScheme='teal'>
                 <Thead>
                     <Tr>
                         <Th>序号</Th>
@@ -35,7 +54,7 @@ export function DailyResultTable({ resultData }: DailyResultProps) {
                 <Tbody>
                     {
                         resultData?.order?.map((module, index) => {
-                            return <ModuleResult key={module} index={index} resultData={resultData.result.get(module)!} />
+                            return <ModuleResult key={module} index={index} resultData={resultData.result[module]} />
                         })
                     }
                 </Tbody>
@@ -45,7 +64,7 @@ export function DailyResultTable({ resultData }: DailyResultProps) {
     )
 }
 
-export function ModuleResult({ resultData, index, ...rest }: ModuleResultProps) {
+function ModuleResult({ resultData, index, ...rest }: ModuleResultProps) {
 
     return (
         <Tr {...rest}>

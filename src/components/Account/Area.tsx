@@ -33,7 +33,7 @@ export default function Area({ alias, keys: key }: AreaProps) {
 
     const tocList: TocItem[] = [];
     config?.order.map((module) => {
-        tocList.push({ name: config.info.get(module)!.name, id: module })
+        tocList.push({ name: config.info[module].name, id: module })
     })
 
 
@@ -42,7 +42,7 @@ export default function Area({ alias, keys: key }: AreaProps) {
             <Stack mr={"15px"}>
                 {
                     config?.order.map((module) => (
-                        <Module key={module} id={module} alias={alias} config={config?.config} info={(config.info.get(module)!)} isOpen={isOpen} onOpen={onOpen} onClose={onClose} />
+                        <Module key={module} id={module} alias={alias} config={config?.config} info={(config.info[module])} isOpen={isOpen} onOpen={onOpen} onClose={onClose} />
                     ))
                 }
 

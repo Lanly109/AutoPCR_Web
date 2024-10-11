@@ -12,6 +12,15 @@ export const API = axios.create({
 	},
 });
 
+export const Fetch = axios.create({
+	timeout: 10000,
+	withCredentials: true,
+	headers: {
+		'Content-Type': 'application/json',
+		'X-APP-Version': APP_VERSION,
+	},
+});
+
 import { Route as LoginRoute } from "@routes/daily/login";
 
 API.interceptors.response.use(

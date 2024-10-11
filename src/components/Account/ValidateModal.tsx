@@ -10,7 +10,7 @@ import {
 import NiceModal, { useModal } from "@ebay/nice-modal-react";
 import Validate from './Validate';
 
-interface ValidateModalProps {
+export interface ValidateModalProps {
     alias: string;
     id: string;
     userid: string;

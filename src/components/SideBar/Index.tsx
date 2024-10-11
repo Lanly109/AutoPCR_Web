@@ -25,6 +25,8 @@ import { Route as InfoRoute } from "@routes/daily/_sidebar/account/index";
 import { MoonIcon, SunIcon } from '@chakra-ui/icons'
 import autopcr from "@/assets/autopcr.svg"
 import { AxiosError } from 'axios'
+import { useEffect } from 'react'
+import { ValidateResponse } from '@/interfaces/Account'
 
 interface NavItemProps extends FlexProps {
     icon?: IconType
@@ -74,6 +76,25 @@ export default function Nav() {
 
     const navigate = useNavigate();
 
+    useEffect(() => {
+        const eventSource = new EventSource('/daily/api/query_validate');
+
+        eventSource.onmessage = function(event) {
+            const res: ValidateResponse = JSON.parse(event.data as string) as ValidateResponse;
+            if (res.status !== 'ok') {
+                window.open(res.url, '_blank');
+            }
+        };
+
+        eventSource.onerror = function(err) {
+            console.error('Error receiving SSE', err);
+        };
+
+        return () => {
+            eventSource.close();
+        };
+    }, []);
+
     const handleLogout = () => {
         postLogout().then(async (res) => {
             toast({ title: "登出成功", description: res, status: "success", position: "top-right" });
@@ -82,8 +103,6 @@ export default function Nav() {
             toast({ title: "登出失败", description: err.response?.data as string, status: "error", position: "top-right" });
         })
     }
-
-    const version = process.env.REACT_APP_VERSION;
 
     return (
         <>
@@ -119,7 +138,7 @@ export default function Nav() {
 
             <Box position="fixed" bottom={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={4} textAlign='right'>
                 <Text fontSize="sm" color="gray.500">
-                    Powered by <a href="https://github.com/cc004/autopcr">AutoPCR</a> <a href="https://github.com/Lanly109/AutoPCR_Web">AutoPCR_Web</a>：{version}
+                    Powered by <a href="https://github.com/cc004/autopcr">AutoPCR</a> <a href="https://github.com/Lanly109/AutoPCR_Web">AutoPCR_Web</a>：{APP_VERSION}
                 </Text>
             </Box>
         </>

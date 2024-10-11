@@ -23,6 +23,14 @@ export interface AccountResponse {
    * 功能类型 
    */
   area: AreaInfo[];
+  /**
+   * 批量选择账号 
+   */
+  batch_accounts: string[];
+  /**
+   * 批量所有账号 
+   */
+  all_accounts: string[];
 }
 
 export interface AreaInfo {
@@ -42,4 +50,5 @@ export interface ValidateResponse {
   gt: string;
   userid: string;
   status: string;
+  url: string;
 }

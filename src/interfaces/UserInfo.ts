@@ -15,6 +15,10 @@ export interface UserInfoResponse {
    * 登录日志
    */
   login_log?: LoginLog[];
+  /**
+   * 公会管理
+   */
+  clan?: boolean;
 }
 
 export interface AccountInfo {
@@ -25,26 +29,30 @@ export interface AccountInfo {
   /**
    * 最近一次清日常信息
    */
-  daily_clean_time: DailyResult;
-  /**
-   * 最近清日常信息列表
-   */
-  daily_clean_time_list: DailyResult[];
+  daily_clean_time: ResultInfo;
 }
 
-export interface DailyResult {
+export interface ResultInfo {
   /**
-   * 清日常时间
+   * 结果时间
    */
   time: string;
   /**
-   * 清日常时间，去除特殊符号
+   * 结果别名
    */
-  time_safe: string;
+  alias: string;
   /**
-   * 清日常状态
+   * 结果备注
    */
-  status: "成功" | "警告" | "错误";
+  msg: string;
+  /**
+   * 结果链接
+   */
+  url: string;
+  /**
+   * 结果状态
+   */
+  status: "成功" | "警告" | "错误" | '跳过' | '中止';
 }
 
 export interface LoginLog {

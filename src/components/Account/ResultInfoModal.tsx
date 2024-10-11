@@ -1,3 +1,4 @@
+import { ResultInfo as ResultInfoInterface } from '@interfaces/UserInfo';
 import {
     Modal,
     ModalOverlay,
@@ -5,32 +6,26 @@ import {
     ModalHeader,
     ModalBody,
     ModalCloseButton,
-    Image,
-    Text,
 } from '@chakra-ui/react'
 import NiceModal, { useModal } from "@ebay/nice-modal-react";
+import { ResultInfo } from "./ResultInfo"
 
 interface ModalProps {
     alias: string
-    result: string
-    resultUrl: string
+    title: string
+    resultInfo: ResultInfoInterface[]
 }
 
-const resultModal = NiceModal.create(({ alias, result, resultUrl }: ModalProps) => {
+const resultModal = NiceModal.create(({ alias, title, resultInfo }: ModalProps) => {
     const modal = useModal();
     return (
         <Modal blockScrollOnMount={false} size="full" closeOnOverlayClick={false} isOpen={modal.visible} onClose={modal.hide}>
             <ModalOverlay />
             <ModalContent>
-                <ModalHeader>{alias}的日常报告</ModalHeader>
+                <ModalHeader>{alias}的{title}结果</ModalHeader>
                 <ModalCloseButton />
                 <ModalBody>
-                    {resultUrl &&
-                        <Image src={resultUrl} alt='result_image' />
-                    }
-                    {result &&
-                        <Text> {result} </Text>
-                    }
+                    <ResultInfo resultInfo={resultInfo} />
                 </ModalBody>
 
             </ModalContent>

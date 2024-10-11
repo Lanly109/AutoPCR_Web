@@ -2,7 +2,7 @@ export interface ModuleResponse {
 	/**
 	 * 模块配置
 	 */
-	config: Map<string, ConfigValue>;
+	config: Record<string, ConfigValue>;
 	/**
 	 * 模块顺序
 	 */
@@ -10,7 +10,7 @@ export interface ModuleResponse {
 	/**
 	 * 模块信息
 	 */
-	info: Map<string, ModuleInfo>;
+	info: Record<string, ModuleInfo>;
 }
 
 export interface ModuleInfo {
@@ -33,7 +33,7 @@ export interface ModuleInfo {
 	/**
 	* 模块配置
 	*/
-	config: Map<string, ConfigInfo>;
+	config: Record<string, ConfigInfo>;
 	/**
 	* 模块标签
 	*/
@@ -76,4 +76,4 @@ export interface ConfigInfo {
 }
 
 export type ConfigValue = number | string | boolean | (string | number)[];
-export type ConfigType = "bool" | "int" | "single" | "multi" | "time";
+export type ConfigType = "bool" | "int" | "single" | "multi" | "time" | "text";

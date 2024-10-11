@@ -8,7 +8,7 @@ export interface ModuleResultResponse {
 	/**
 	 * 模块结果
 	 */
-	result: Map<string, ModuleResult>;
+	result: Record<string, ModuleResult>;
 }
 
 export interface ModuleResult {
@@ -30,4 +30,4 @@ export interface ModuleResult {
 	log: string;
 }
 
-export type ModuleResultStatus = "success" | "error" | "abort" | "skip";
+export type ModuleResultStatus = "成功" | "错误" | "中止" | "跳过";

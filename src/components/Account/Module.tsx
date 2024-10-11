@@ -1,16 +1,15 @@
-import { ConfigValue, ModuleInfo } from '@/interfaces/Module';
-import DailyResultModal from './DailyResultModal';
+import { ConfigValue, ModuleInfo } from '@interfaces/Module';
+import ResultInfoModal from './ResultInfoModal';
 import { Card, CardHeader, CardBody, Checkbox, Heading, Stack, StackDivider, Box, Text, Flex, Button, Spacer, CardProps, HStack, Tag, useToast } from '@chakra-ui/react'
 import Config from './Config';
-import { getAccountAreaSingleResult, postAccountAreaSingle, putAccountConfig } from '@/api/Account';
+import { getAccountAreaSingleResultList, postAccountAreaSingle, putAccountConfig } from '@api/Account';
 import { ChangeEventHandler } from 'react';
 import NiceModal from '@ebay/nice-modal-react';
-import { QueryValidate } from './Validate';
 import { AxiosError } from 'axios';
 
 interface ModuleProps extends CardProps {
     alias: string,
-    config: Map<string, ConfigValue>,
+    config: Record<string, ConfigValue>,
     info: ModuleInfo
     isOpen: boolean,
     onOpen: () => void,
@@ -31,31 +30,22 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
     const handleExecute = () => {
         toast({ status: 'info', title: '开始执行' + info?.name + "..." });
         onOpen();
-        postAccountAreaSingle(alias, info?.key, info?.text_result).then(async (res) => {
+        postAccountAreaSingle(alias, info?.key).then(async (res) => {
             toast({ status: 'success', title: '执行成功' });
             onClose();
-            if (info?.text_result) {
-                await NiceModal.show(DailyResultModal, { alias: alias, result: res });
-            } else {
-                await NiceModal.show(DailyResultModal, { alias: alias, resultUrl: res });
-            }
+            await NiceModal.show(ResultInfoModal, { alias: alias, title: info?.name, resultInfo: res });
         }).catch(async (err: AxiosError) => {
             toast({ status: 'error', title: '执行失败', description: await (err.response?.data as Blob).text() || "网络错误" });
             onClose();
         });
-        QueryValidate(toast, alias);
     }
 
     const handleResult = () => {
         toast({ status: 'info', title: `正在获取${info?.name}的结果` });
         onOpen();
-        getAccountAreaSingleResult(alias, info?.key, info?.text_result).then(async (res) => {
+        getAccountAreaSingleResultList(alias, info?.key).then(async (res) => {
             onClose();
-            if (info?.text_result) {
-                await NiceModal.show(DailyResultModal, { alias: alias, result: res });
-            } else {
-                await NiceModal.show(DailyResultModal, { alias: alias, resultUrl: res });
-            }
+            await NiceModal.show(ResultInfoModal, { alias: alias, title: info?.name, resultInfo: res });
         }).catch(async (err: AxiosError) => {
             onClose();
             toast({ status: 'error', title: '获取结果失败', description: await (err.response?.data as Blob).text() || "网络错误" });
@@ -66,7 +56,7 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
         <Card colorScheme="red" {...rest} >
             <CardHeader>
                 <Flex>
-                    <Checkbox defaultChecked={config.get(info?.key) as boolean} onChange={onChange}>
+                    <Checkbox defaultChecked={config[info.key] as boolean} onChange={onChange}>
                         <Heading size='md'>{info?.name} {
                             info?.tags.map(item => <Tag key={item}>{item}</Tag>)
                         }</Heading>
@@ -88,7 +78,7 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
                     {info?.description &&
                         <Box>
                             <Heading size='md'>描述</Heading>
-                            <Text pt='2' fontSize='sm'>
+                            <Text pt='2' style={{ whiteSpace: 'pre-wrap' }} fontSize='sm'>
                                 {info?.description}
                             </Text>
                         </Box>
@@ -99,7 +89,7 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
                                 {<Heading size='md'>设置项</Heading>}
                                 {
                                     info?.config_order.map((key) => (
-                                        <Config key={key} alias={alias} value={config.get(key)!} info={info.config.get(key)!} />
+                                        <Config key={key} alias={alias} value={config[key]} info={info.config[key]} />
                                     ))
                                 }
                             </Stack>

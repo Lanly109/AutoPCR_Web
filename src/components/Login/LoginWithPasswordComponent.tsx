@@ -77,7 +77,7 @@ export default function LoginWithPasswordComponent() {
                 <Stack spacing={4}>
                     <FormControl id="qq">
                         <FormLabel>QQ</FormLabel>
-                        <Input type="number"
+                        <Input type="text"
                             {...register('qq')}
                             placeholder='5位以上'
                             defaultValue={localStorage.getItem('qq') as (string | undefined)}
