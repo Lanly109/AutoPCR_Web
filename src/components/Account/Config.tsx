@@ -1,7 +1,7 @@
 import { ConfigInfo, ConfigValue } from '@/interfaces/Module';
-import { Switch, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Input, InputGroup, InputLeftAddon, InputRightAddon, Select, useToast, CheckboxGroup, Checkbox, Stack, Box, useColorModeValue } from '@chakra-ui/react'
+import { Switch, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Input, InputGroup, InputLeftAddon, InputRightAddon, Select, useToast, CheckboxGroup, Checkbox, Stack, Box, useColorModeValue, Textarea, Text } from '@chakra-ui/react'
 import { putAccountConfig } from '@/api/Account';
-import { ChangeEventHandler } from 'react';
+import { ChangeEventHandler, FocusEventHandler } from 'react';
 import { AxiosError } from 'axios';
 
 interface ConfigProps {
@@ -22,6 +22,8 @@ export default function Config({ alias, value, info }: ConfigProps) {
             return <ConfigMulti alias={alias} value={value} info={info} />
         case 'time':
             return <ConfigTime alias={alias} value={value} info={info} />
+        case 'text':
+            return <ConfigText alias={alias} value={value} info={info} />
     }
 }
 
@@ -144,7 +146,7 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
 
 function ConfigTime({ alias, value, info }: ConfigProps) {
     const toast = useToast();
-    const onChange: ChangeEventHandler<HTMLInputElement> = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const onBlur: ChangeEventHandler<HTMLInputElement> = (e: React.ChangeEvent<HTMLInputElement>) => {
         putAccountConfig(alias, info.key, e.target.value as ConfigValue).then((res) => {
             toast({ status: 'success', title: '保存成功', description: res });
         }).catch((err: AxiosError) => {
@@ -158,7 +160,28 @@ function ConfigTime({ alias, value, info }: ConfigProps) {
                 {info.desc}
             </InputLeftAddon>
 
-            <Input type='time' onChange={onChange} id={info.key} defaultValue={value as string} />
+            <Input type='time' onBlur={onBlur} id={info.key} defaultValue={value as string} />
         </InputGroup>
+    )
+}
+
+function ConfigText({ alias, value, info }: ConfigProps) {
+    const toast = useToast();
+    const onBlur: FocusEventHandler<HTMLTextAreaElement> = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        putAccountConfig(alias, info.key, e.target.value as ConfigValue).then((res) => {
+            toast({ status: 'success', title: '保存成功', description: res });
+        }).catch((err: AxiosError) => {
+            toast({ status: 'error', title: '保存失败', description: err.response?.data as string || "网络错误" });
+        });
+    }
+
+    return (
+        <>
+            <Text>
+                {info.desc}
+            </Text>
+
+            <Textarea onBlur={onBlur} id={info.key} defaultValue={value as string} />
+        </>
     )
 }
