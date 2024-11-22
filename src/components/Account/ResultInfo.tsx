@@ -11,19 +11,19 @@ function ResultDetail({ url }: { url: string }) {
     return (
         <Tabs isLazy variant='soft-rounded'>
             <TabList>
-                <Tab>图片</Tab>
                 <Tab>文本</Tab>
+                <Tab>图片</Tab>
             </TabList>
             <TabPanels>
+                <TabPanel>
+                    <ResultTable url={url + "?text=true"} />
+                </TabPanel>
                 <TabPanel>
                     <Image
                         src={url}
                         width="100%"
                         height="100%"
                     />
-                </TabPanel>
-                <TabPanel>
-                    <ResultTable url={url + "?text=true"} />
                 </TabPanel>
             </TabPanels>
         </Tabs>
