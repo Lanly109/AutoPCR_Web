@@ -160,7 +160,7 @@ export function DashBoard() {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     return (
-        <Stack>
+        <Stack height={'100%'}>
             <Box>
                 <Tag size='lg' variant='subtle' colorScheme='cyan' onClick={() => showReadme()}>
                     <TagLeftIcon boxSize='12px' as={FiUser} />
@@ -195,7 +195,7 @@ export function DashBoard() {
                 </SimpleGrid>
             </Stack>
 
-            <RadioGroup onChange={handleDefaultAccount} value={userInfo?.default_account}>
+            <RadioGroup onChange={handleDefaultAccount} value={userInfo?.default_account} flex={1} overflow={'auto'}>
                 <Stack>
                     <SimpleGrid spacing={4} templateColumns='repeat(auto-fill, minmax(250px, 1fr))'>
                         {

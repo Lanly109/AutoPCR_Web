@@ -105,8 +105,8 @@ export default function Nav() {
     }
 
     return (
-        <>
-            <Box position="fixed" top={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={4}>
+        <Flex flexDirection={'column'} height={'100vh'}>
+            <Box top={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={4}>
                 <Flex h={16} alignItems={'center'} justifyContent={'space-between'}>
                     <Box>
                         <Link to={InfoRoute.to}>
@@ -132,15 +132,15 @@ export default function Nav() {
                 </Flex>
             </Box>
 
-            <Box p={4} marginTop={16} marginBottom={16}>
+            <Flex p={4} flex={1} overflow={'auto'} flexDirection={'column'}>
                 <Outlet />
-            </Box>
+            </Flex>
 
             <Box position="fixed" bottom={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={4} textAlign='right'>
                 <Text fontSize="sm" color="gray.500">
                     Powered by <a href="https://github.com/cc004/autopcr">AutoPCR</a> <a href="https://github.com/Lanly109/AutoPCR_Web">AutoPCR_Web</a>：{APP_VERSION}
                 </Text>
             </Box>
-        </>
+        </Flex>
     )
 }

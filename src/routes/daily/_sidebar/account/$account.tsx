@@ -31,7 +31,7 @@ function AccountComponent() {
     // }, [account, newToast]);
 
     return (
-        <Tabs isLazy variant='enclosed' defaultIndex={accountInfo?.username != "" && accountInfo?.password != "" ? 1 : 0}>
+        <Tabs isLazy variant='enclosed' defaultIndex={accountInfo?.username != "" && accountInfo?.password != "" ? 1 : 0} display={'flex'} flexDirection={'column'} height={'100%'}>
             <TabList mb='1em'>
                 <Tab id="account"> {account} </Tab>
                 {
@@ -42,7 +42,7 @@ function AccountComponent() {
                     })
                 }
             </TabList>
-            <TabPanels>
+            <TabPanels flex={1} overflow={'auto'}>
                 <TabPanel id="account" >
                     <Info accountInfo={accountInfo} />
                 </TabPanel>
