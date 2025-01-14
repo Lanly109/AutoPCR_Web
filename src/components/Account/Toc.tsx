@@ -43,7 +43,7 @@ const NavItem = ({ module_id, children, ...rest }: NavItemProps) => {
             href={`#${module_id}`}
             style={{ textDecoration: 'none' }}
             _focus={{ boxShadow: 'none' }}
-            onClick={(e) => {
+            onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                 e.preventDefault();
                 document.querySelector(`#${module_id}`)?.scrollIntoView({
                     behavior: "smooth"
