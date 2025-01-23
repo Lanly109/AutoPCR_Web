@@ -44,7 +44,8 @@ export function DashBoard() {
     const [userInfo, setUserInfo] = useState<UserInfoResponse>();
     const freshAccountInfo = useDisclosure();
     const creatAccountSwitch = useDisclosure();
-    const deleteConfirm = useDisclosure()
+    const deleteQQConfirm = useDisclosure()
+    const clearAccountConfirm = useDisclosure()
     const [alias, setAlias] = useState<string>("");
     const [count, increaseCount, decreaseCount] = useCountHook();
 
@@ -140,7 +141,7 @@ export function DashBoard() {
     const handleDeleteAccount = () => {
         deleteAccount().then(async (res) => {
             toast({ status: 'success', title: '删除QQ成功', description: res });
-            deleteConfirm.onToggle();
+            deleteQQConfirm.onToggle();
             await navigate({ to: LoginRoute.to });
         }).catch((err: AxiosError) => {
             toast({ status: 'error', title: '删除QQ失败', description: err?.response?.data as string || '网络错误' });
@@ -150,7 +151,7 @@ export function DashBoard() {
     const handleClearAccounts = () => {
         clearAccounts().then((res) => {
             toast({ status: 'success', title: '清除账号成功', description: res });
-            deleteConfirm.onToggle();
+            clearAccountConfirm.onToggle();
             freshAccountInfo.onToggle();
         }).catch((err: AxiosError) => {
             toast({ status: 'error', title: '清除账号失败', description: err?.response?.data as string || '网络错误' });
@@ -184,12 +185,12 @@ export function DashBoard() {
                         display="none"
                     />
                     <Button as={Link} colorScheme="blue" to={DashBoardRoute.to + "BATCH_RUNNER"} isLoading={count != 0} >批量运行</Button>
-                    <Button colorScheme="red" onClick={deleteConfirm.onOpen}>删除QQ</Button>
-                    <Alert leastDestructiveRef={cancelRef} isOpen={deleteConfirm.isOpen} onClose={deleteConfirm.onClose} title="删除QQ" body={`确定删除QQ${userInfo?.qq}吗？`} onConfirm={handleDeleteAccount}> </Alert>
+                    <Button colorScheme="red" onClick={deleteQQConfirm.onOpen}>删除QQ</Button>
+                    <Alert leastDestructiveRef={cancelRef} isOpen={deleteQQConfirm.isOpen} onClose={deleteQQConfirm.onClose} title="删除QQ" body={`确定删除QQ${userInfo?.qq}吗？`} onConfirm={handleDeleteAccount}> </Alert>
                     {userInfo?.clan &&
-                        <Button colorScheme="red" onClick={deleteConfirm.onOpen}>清除账号</Button>
+                        <Button colorScheme="red" onClick={clearAccountConfirm.onOpen}>清除账号</Button>
                     }
-                    <Alert leastDestructiveRef={cancelRef} isOpen={deleteConfirm.isOpen} onClose={deleteConfirm.onClose} title="清除所有账号" body={`确定清除所有账号吗？`} onConfirm={handleClearAccounts}> </Alert>
+                    <Alert leastDestructiveRef={cancelRef} isOpen={clearAccountConfirm.isOpen} onClose={clearAccountConfirm.onClose} title="清除所有账号" body={`确定清除所有账号吗？`} onConfirm={handleClearAccounts}> </Alert>
                     <Button colorScheme="blue" onClick={handleCreateAccount}>{creatAccountSwitch.isOpen ? "提交" : "创建账号"}</Button>
                     {creatAccountSwitch.isOpen && <Input isRequired placeholder="请输入昵称" onChange={(e) => { setAlias(e.target.value) }} />}
                 </SimpleGrid>
