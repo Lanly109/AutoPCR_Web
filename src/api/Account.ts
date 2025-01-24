@@ -3,7 +3,12 @@ import { API } from '@api/APIUtils';
 import { AccountResponse, ValidateResponse } from '@interfaces/Account';
 import { DefaultResponse } from '@interfaces/DefaultResponse';
 import { ConfigValue, ModuleResponse } from '@interfaces/Module';
-import { AccountInfo, ResultInfo, UserInfoResponse } from '@interfaces/UserInfo';
+import {AccountInfo, ResultInfo, RoleInfo, UserInfo, UserInfoResponse} from '@interfaces/UserInfo';
+
+export async function getRole() {
+  const response = await API.get<RoleInfo>('/role');
+  return response.data;
+}
 
 export async function getUserInfo() {
   const response = await API.get<UserInfoResponse>('/account');
@@ -132,6 +137,21 @@ export async function getAccountAreaSingleResult(alias: string, module: string, 
     const imageUrl = window.URL.createObjectURL(response.data as Blob);
     return imageUrl
   }
+}
+
+export async function getAllUsers() {
+  const response = await API.get<UserInfo[]>('/user');
+  return response.data;
+}
+
+export async function putUser(account: string, userInfo: UserInfo) {
+  const response = await API.put<DefaultResponse>(`/user/${account}`, userInfo);
+  return response.data;
+}
+
+export async function deleteUser(account: string) {
+  const response = await API.delete<DefaultResponse>(`/user/${account}`);
+  return response.data;
 }
 
 export async function getAccountValidate() {

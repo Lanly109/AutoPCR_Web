@@ -1,3 +1,37 @@
+export interface RoleInfo {
+  /**
+   * 管理员
+   */
+  admin?: boolean;
+}
+
+export interface UserInfo {
+  /**
+   * QQ
+   */
+  qq?: string;
+  /**
+   * 管理员
+   */
+  admin?: boolean;
+  /**
+   * 密码
+   */
+  password?: string;
+  /**
+   * 禁用
+   */
+  disabled?: boolean;
+  /**
+   * 账户数量
+   */
+  account_count?: number;
+  /**
+   * 公会管理
+   */
+  clan?: boolean;
+}
+
 export interface UserInfoResponse {
   /**
    * QQ
