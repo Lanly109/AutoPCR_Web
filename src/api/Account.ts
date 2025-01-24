@@ -4,10 +4,18 @@ import { AccountResponse, ValidateResponse } from '@interfaces/Account';
 import { DefaultResponse } from '@interfaces/DefaultResponse';
 import { ConfigValue, ModuleResponse } from '@interfaces/Module';
 import {AccountInfo, ResultInfo, RoleInfo, UserInfo, UserInfoResponse} from '@interfaces/UserInfo';
+import {useEffect, useState} from "react";
 
-export async function getRole() {
-  const response = await API.get<RoleInfo>('/role');
-  return response.data;
+export function useUserRole() {
+  const [role, setRole] = useState<RoleInfo>()
+
+  useEffect(() => {
+    API.get<RoleInfo>('/role').then(response => {
+      setRole(response.data)
+    }).catch(() => {return})
+  }, []);
+
+  return role;
 }
 
 export async function getUserInfo() {
@@ -141,6 +149,11 @@ export async function getAccountAreaSingleResult(alias: string, module: string, 
 
 export async function getAllUsers() {
   const response = await API.get<UserInfo[]>('/user');
+  return response.data;
+}
+
+export async function createUser(account: string, userInfo: UserInfo) {
+  const response = await API.post<DefaultResponse>(`/user/${account}`, userInfo);
   return response.data;
 }
 

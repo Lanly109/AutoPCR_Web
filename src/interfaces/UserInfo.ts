@@ -3,6 +3,10 @@ export interface RoleInfo {
    * 管理员
    */
   admin?: boolean;
+  /**
+   * 超管
+   */
+  super_user?: boolean;
 }
 
 export interface UserInfo {

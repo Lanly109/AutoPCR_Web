@@ -27,10 +27,9 @@ import { Route as UsersRoute } from "@routes/daily/_sidebar/user/index";
 import { MoonIcon, SunIcon } from '@chakra-ui/icons'
 import autopcr from "@/assets/autopcr.svg"
 import { AxiosError } from 'axios'
-import {useEffect, useState} from 'react'
+import {useEffect} from 'react'
 import { ValidateResponse } from '@/interfaces/Account'
-import {RoleInfo} from "@interfaces/UserInfo.ts";
-import {getRole} from "@api/Account.ts";
+import {useUserRole} from "@api/Account.ts";
 
 interface NavItemProps extends FlexProps {
     icon?: IconType
@@ -77,7 +76,7 @@ export default function Nav() {
     const { colorMode, toggleColorMode } = useColorMode()
     const theme = useTheme();
     const { toast } = createStandaloneToast({ theme });
-    const [role, setRole] = useState<RoleInfo>();
+    const role = useUserRole();
 
     const navigate = useNavigate();
 
@@ -98,14 +97,6 @@ export default function Nav() {
         return () => {
             eventSource.close();
         };
-    }, []);
-
-    useEffect(() => {
-        getRole().then((res) => {
-            setRole(res);
-        }).catch((err: AxiosError) => {
-            toast({ status: 'error', title: err?.response?.data as string || '网络错误' });
-        });
     }, []);
 
     const handleLogout = () => {
