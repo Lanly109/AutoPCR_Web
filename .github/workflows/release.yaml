@@ -2,10 +2,8 @@ name: release
 
 on:
   push:
-    paths:
-      - 'src/**'
-    branches:
-      - main
+    tags:
+      - '*'
   workflow_dispatch:
 
 jobs:
