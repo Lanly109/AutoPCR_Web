@@ -15,6 +15,7 @@ import {
 } from '@chakra-ui/react'
 import {
     FiHome,
+    FiUsers,
     FiCompass,
 } from 'react-icons/fi'
 import { IconType } from 'react-icons'
@@ -22,11 +23,13 @@ import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { postLogout } from '@api/Login'
 import { Route as LoginRoute } from "@routes/daily/login";
 import { Route as InfoRoute } from "@routes/daily/_sidebar/account/index";
+import { Route as UsersRoute } from "@routes/daily/_sidebar/user/index";
 import { MoonIcon, SunIcon } from '@chakra-ui/icons'
 import autopcr from "@/assets/autopcr.svg"
 import { AxiosError } from 'axios'
-import { useEffect } from 'react'
+import {useEffect} from 'react'
 import { ValidateResponse } from '@/interfaces/Account'
+import {useUserRole} from "@api/Account.ts";
 
 interface NavItemProps extends FlexProps {
     icon?: IconType
@@ -73,6 +76,7 @@ export default function Nav() {
     const { colorMode, toggleColorMode } = useColorMode()
     const theme = useTheme();
     const { toast } = createStandaloneToast({ theme });
+    const role = useUserRole();
 
     const navigate = useNavigate();
 
@@ -117,6 +121,9 @@ export default function Nav() {
                         <NavItem key="dashboard" href={InfoRoute.to} icon={FiHome} >
                             一览
                         </NavItem>
+                        {role?.admin && <NavItem key="user" href={UsersRoute.to} icon={FiUsers}>
+                            用户管理
+                        </NavItem>}
                         <NavItem key="logout" icon={FiCompass} onClick={handleLogout}>
                             登出
                         </NavItem>
