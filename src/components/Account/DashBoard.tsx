@@ -20,6 +20,7 @@ import {
     TagLabel,
     SimpleGrid,
     useToast,
+    Text,
 } from '@chakra-ui/react'
 
 import { Route as DashBoardRoute } from "@routes/daily/_sidebar/account/index";
@@ -51,16 +52,15 @@ export function DashBoard() {
 
     const showReadme = () => {
         NiceModal.show(ReadmeModal, {}).then(() => {
-            localStorage.setItem('readme', 'true');
+            localStorage.setItem('readme2', 'true');
         }).catch(() => {
-            localStorage.setItem('readme', 'true');
+            localStorage.setItem('readme2', 'true');
         });
     }
 
     useEffect(() => {
-        const readme = localStorage.getItem('readme');
+        const readme = localStorage.getItem('readme2');
         if (!readme) {
-            localStorage.setItem('readme', 'true');
             showReadme();
         }
     }, []);
@@ -285,6 +285,7 @@ function AccountInfo({ account, onToggle, increaseCount, decreaseCount, updateAc
             </CardHeader>
             <CardBody>
                 最近清日常： {account.daily_clean_time.status == "成功" ? "✓" : account.daily_clean_time.status == "警告" ? "!" : "×"}{account.daily_clean_time.time}
+                {account.clan_forbid ? <Text>公会期间禁用</Text> : ""}
             </CardBody>
             <CardFooter>
                 <SimpleGrid columns={2} spacing={4}>

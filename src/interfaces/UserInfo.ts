@@ -68,6 +68,10 @@ export interface AccountInfo {
    * 最近一次清日常信息
    */
   daily_clean_time: ResultInfo;
+  /**
+   * 会战期间禁止
+   */
+   clan_forbid: boolean;
 }
 
 export interface ResultInfo {
