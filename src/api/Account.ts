@@ -18,6 +18,18 @@ export function useUserRole() {
   return role;
 }
 
+export async function getClanForbid() {
+	const response = await API.get<DefaultResponse>('/clan_forbid');
+	return response.data;
+}
+
+export async function putClanForbid(accs: string) {
+	const response = await API.put<DefaultResponse>('/clan_forbid', {
+		accs: accs,
+	});
+	return response.data;
+}
+
 export async function getUserInfo() {
   const response = await API.get<UserInfoResponse>('/account');
   return response.data;
@@ -152,7 +164,7 @@ export async function getAllUsers() {
   return response.data;
 }
 
-export async function createUser(account: string, userInfo: UserInfo) {
+export async function postUser(account: string, userInfo: UserInfo) {
   const response = await API.post<DefaultResponse>(`/user/${account}`, userInfo);
   return response.data;
 }
