@@ -42,6 +42,10 @@ export interface UserInfoResponse {
    */
   qq?: string;
   /**
+   * 密码
+   */
+  password?: string;
+  /**
    * 账号昵称
    */
   accounts?: AccountInfo[];

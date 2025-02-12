@@ -35,10 +35,8 @@ export async function getUserInfo() {
   return response.data;
 }
 
-export async function putDefaultAccount(account: string) {
-  const response = await API.put<DefaultResponse>('/account', {
-    default_account: account,
-  });
+export async function putUserInfo(userInfo: UserInfoResponse) {
+  const response = await API.put<DefaultResponse>('/account', userInfo);
   return response.data;
 }
 

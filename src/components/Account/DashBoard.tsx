@@ -1,5 +1,5 @@
 import React, { ChangeEvent } from 'react';
-import { clearAccounts, deleteAccount, getAccountDailyResultList, getUserInfo, postAccountSyncConfig, putDefaultAccount } from '@api/Account';
+import { clearAccounts, deleteAccount, getAccountDailyResultList, getUserInfo, postAccountSyncConfig, putUserInfo } from '@api/Account';
 import { AccountInfo as AccountInfoInterface, UserInfoResponse } from '@interfaces/UserInfo';
 import {
     RadioGroup,
@@ -39,6 +39,7 @@ const handle: Map<string, (arg0: boolean) => void> = new Map<string, (arg0: bool
 import { FocusableElement } from "@chakra-ui/utils"
 import { useCountHook } from '../count';
 import { AxiosError } from 'axios';
+import resetPasswdModal from '../Users/ResetPasswdModal';
 
 export function DashBoard() {
     const toast = useToast()
@@ -75,13 +76,23 @@ export function DashBoard() {
     }, [freshAccountInfo.isOpen, toast]);
 
     const handleDefaultAccount = (value: string) => {
-        putDefaultAccount(value).then((res) => {
+        putUserInfo({ default_account: value }).then((res) => {
             setUserInfo({ ...userInfo, default_account: value })
             toast({ status: 'success', title: '设置默认账号成功', description: res });
         }).catch((err: AxiosError) => {
             toast({ status: 'error', title: '设置默认账号失败', description: err?.response?.data as string || '网络错误' });
         });
+    };
 
+    const handleResetPassword = () => {
+        NiceModal.show(resetPasswdModal, {}).then((value) => {
+            putUserInfo({ password: value as string }).then((res) => {
+                toast({ status: 'success', title: '修改密码成功', description: res });
+                NiceModal.hide(resetPasswdModal).then(() => { return; }).catch(() => { return; });
+            }).catch((err: AxiosError) => {
+                toast({ status: 'error', title: '修改密码失败', description: err?.response?.data as string || '网络错误' });
+            });
+        }).catch(() => { return });
     };
 
     const updateAccountInfo = (updatedAccount: AccountInfoInterface) => {
@@ -185,6 +196,7 @@ export function DashBoard() {
                         display="none"
                     />
                     <Button as={Link} colorScheme="blue" to={DashBoardRoute.to + "BATCH_RUNNER"} isLoading={count != 0} >批量运行</Button>
+                    <Button colorScheme="red" onClick={handleResetPassword}>修改密码</Button>
                     <Button colorScheme="red" onClick={deleteQQConfirm.onOpen}>删除QQ</Button>
                     <Alert leastDestructiveRef={cancelRef} isOpen={deleteQQConfirm.isOpen} onClose={deleteQQConfirm.onClose} title="删除QQ" body={`确定删除QQ${userInfo?.qq}吗？`} onConfirm={handleDeleteAccount}> </Alert>
                     {userInfo?.clan &&
