@@ -26,7 +26,7 @@ export interface AccountResponse {
   /**
    * 批量选择账号 
    */
-  batch_accounts: string[];
+  batch_accounts: (string | number)[];
   /**
    * 批量所有账号 
    */

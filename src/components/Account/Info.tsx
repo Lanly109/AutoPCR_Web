@@ -2,7 +2,7 @@ import { putAccount } from '@/api/Account'
 import { AccountResponse } from '@/interfaces/Account'
 import {
     Button,
-    // Checkbox,
+    Checkbox,
     // CheckboxGroup,
     FormControl,
     FormLabel,
@@ -13,9 +13,13 @@ import {
     useColorModeValue,
     useDisclosure,
     useToast,
+    Flex,
+    Box,
+    Text,
+    VStack,
 } from '@chakra-ui/react'
 import { AxiosError } from 'axios'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface InfoProps {
     accountInfo: AccountResponse
@@ -28,13 +32,31 @@ export default function Info({ accountInfo }: InfoProps) {
     const [username, setUsername] = useState<string>(accountInfo?.username);
     const [password, setPassword] = useState<string>(accountInfo?.password);
     const [channel, setChannel] = useState<string>(accountInfo?.channel);
-    // const [batchAccounts, setBatchAccounts] = useState<(string | number)[]>(accountInfo?.batch_accounts);
+    const [batchAccounts, setBatchAccounts] = useState<(string | number)[]>(accountInfo?.batch_accounts || []);
     const { isOpen, onOpen, onClose } = useDisclosure()
+
+    // 全选状态
+    const [allChecked, setAllChecked] = useState<boolean>(false);
+    // 未选择的账号列表
+    const [unselectedAccounts, setUnselectedAccounts] = useState<(string | number)[]>([]);
+
+    // 初始化未选择的账号列表
+    useEffect(() => {
+        if (accountInfo?.all_accounts && accountInfo?.batch_accounts) {
+            const unselected = accountInfo.all_accounts.filter(
+                account => !accountInfo.batch_accounts.includes(account)
+            );
+            setUnselectedAccounts(unselected);
+
+            // 检查是否全选
+            setAllChecked(accountInfo.batch_accounts.length === accountInfo.all_accounts.length);
+        }
+    }, [accountInfo]);
 
     const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         onOpen();
-        putAccount(accountInfo?.alias, username, password, channel)
+        putAccount(accountInfo?.alias, username, password, channel, batchAccounts)
             .then((res) => {
                 toast({ title: '保存成功', description: res, status: 'success', });
             })
@@ -45,7 +67,43 @@ export default function Info({ accountInfo }: InfoProps) {
             });
     }
 
-    // const [all_checked, setAllChecked] = useState<boolean>(accountInfo?.batch_accounts?.length == accountInfo?.all_accounts?.length);
+    // 处理全选/取消全选
+    const handleAllChecked = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const isChecked = e.target.checked;
+        setAllChecked(isChecked);
+
+        if (isChecked) {
+            // 全选
+            setBatchAccounts(accountInfo?.all_accounts ? [...accountInfo.all_accounts] : []);
+            setUnselectedAccounts([]);
+        } else {
+            // 取消全选
+            setBatchAccounts([]);
+            setUnselectedAccounts(accountInfo?.all_accounts ? [...accountInfo.all_accounts] : []);
+        }
+    };
+
+    // 处理单个账号选择
+    const handleAccountToggle = (account: string | number) => {
+        if (batchAccounts.includes(account)) {
+            // 取消选择
+            setBatchAccounts(batchAccounts.filter(item => item !== account));
+            setUnselectedAccounts([...unselectedAccounts, account]);
+        } else {
+            // 选择
+            setBatchAccounts([...batchAccounts, account]);
+            setUnselectedAccounts(unselectedAccounts.filter(item => item !== account));
+        }
+    };
+    const unselectedBoxBg = useColorModeValue('gray.50', 'gray.800');
+    const selectedBoxBg = useColorModeValue('blue.50', 'blue.900');
+
+    // 当选择变化时，更新全选状态
+    useEffect(() => {
+        if (accountInfo?.all_accounts) {
+            setAllChecked(batchAccounts.length === accountInfo.all_accounts.length);
+        }
+    }, [batchAccounts, accountInfo]);
 
     return (
         <Stack
@@ -101,20 +159,63 @@ export default function Info({ accountInfo }: InfoProps) {
                         </FormControl>
                     }
                     {
-                        // accountInfo?.alias == "BATCH_RUNNER" &&
-                        //                    <FormControl id="batch_account">
-                        //                        <FormLabel>批量账号选择</FormLabel>
-                        //                        <CheckboxGroup defaultValue={accountInfo?.batch_accounts} onChange={(v) => setBatchAccounts(v)} >
-                        //                            <Stack spacing={[1, 5]}>
-                        //                                <Checkbox key='all' value='all' checked={all_checked} >全选</Checkbox>
-                        //                                {
-                        //                                    accountInfo?.all_accounts.map((element) => {
-                        //                                        return <Checkbox key={element} value={String(element)} >{element}</Checkbox>
-                        //                                    })
-                        //                                }
-                        //                            </Stack>
-                        //                        </CheckboxGroup>
-                        //                    </FormControl>
+                        accountInfo?.alias == "BATCH_RUNNER" &&
+                        <FormControl id="batch_account">
+                            <FormLabel>批量账号选择</FormLabel>
+                            <Checkbox
+                                isChecked={allChecked}
+                                onChange={handleAllChecked}
+                                mb={4}
+                            >
+                                全选
+                            </Checkbox>
+
+                            <Flex direction={{ base: 'column', md: 'row' }} gap={4}>
+                                {/* 左侧：未选择的账号 */}
+                                <Box
+                                    flex="1"
+                                    borderWidth="1px"
+                                    borderRadius="md"
+                                    p={3}
+                                    bg={unselectedBoxBg}
+                                >
+                                    <Text fontWeight="bold" mb={2}>未选择的账号</Text>
+                                    <VStack align="start" spacing={2}>
+                                        {unselectedAccounts.map((account) => (
+                                            <Checkbox
+                                                key={`unselected-${account}`}
+                                                isChecked={false}
+                                                onChange={() => handleAccountToggle(account)}
+                                            >
+                                                {account}
+                                            </Checkbox>
+                                        ))}
+                                    </VStack>
+                                </Box>
+
+                                {/* 右侧：已选择的账号 */}
+                                <Box
+                                    flex="1"
+                                    borderWidth="1px"
+                                    borderRadius="md"
+                                    p={3}
+                                    bg={selectedBoxBg}
+                                >
+                                    <Text fontWeight="bold" mb={2}>已选择的账号</Text>
+                                    <VStack align="start" spacing={2}>
+                                        {batchAccounts.map((account) => (
+                                            <Checkbox
+                                                key={`selected-${account}`}
+                                                isChecked={true}
+                                                onChange={() => handleAccountToggle(account)}
+                                            >
+                                                {account}
+                                            </Checkbox>
+                                        ))}
+                                    </VStack>
+                                </Box>
+                            </Flex>
+                        </FormControl>
                     }
 
                     <Button

@@ -13,9 +13,9 @@ import { createFileRoute } from '@tanstack/react-router'
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as DailySidebarImport } from './routes/daily/_sidebar'
 import { Route as DailyValidateImport } from './routes/daily/validate'
 import { Route as DailyLoginImport } from './routes/daily/login'
+import { Route as DailySidebarImport } from './routes/daily/_sidebar'
 import { Route as DailySidebarUserIndexImport } from './routes/daily/_sidebar/user/index'
 import { Route as DailySidebarAccountIndexImport } from './routes/daily/_sidebar/account/index'
 import { Route as DailySidebarAccountAccountImport } from './routes/daily/_sidebar/account/$account'
@@ -31,11 +31,6 @@ const DailyRoute = DailyImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const DailySidebarRoute = DailySidebarImport.update({
-  id: '/daily/_sidebar',
-  getParentRoute: () => DailyRoute,
-} as any)
-
 const DailyValidateRoute = DailyValidateImport.update({
   path: '/validate',
   getParentRoute: () => DailyRoute,
@@ -43,6 +38,11 @@ const DailyValidateRoute = DailyValidateImport.update({
 
 const DailyLoginRoute = DailyLoginImport.update({
   path: '/login',
+  getParentRoute: () => DailyRoute,
+} as any)
+
+const DailySidebarRoute = DailySidebarImport.update({
+  id: '/_sidebar',
   getParentRoute: () => DailyRoute,
 } as any)
 
@@ -71,6 +71,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DailyImport
       parentRoute: typeof rootRoute
     }
+    '/daily/_sidebar': {
+      preLoaderRoute: typeof DailySidebarImport
+      parentRoute: typeof DailyRoute
+    }
     '/daily/login': {
       preLoaderRoute: typeof DailyLoginImport
       parentRoute: typeof DailyImport
@@ -90,10 +94,6 @@ declare module '@tanstack/react-router' {
     '/daily/_sidebar/user/': {
       preLoaderRoute: typeof DailySidebarUserIndexImport
       parentRoute: typeof DailySidebarImport
-    }
-    '/daily/_sidebar': {
-      preLoaderRoute: typeof DailySidebarImport
-      parentRoute: typeof DailyRoute
     }
   }
 }

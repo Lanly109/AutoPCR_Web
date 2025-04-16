@@ -51,7 +51,7 @@ export default function LoginWithPasswordComponent() {
         postLoginWithPassword(values.qq, values.password)
             .then(async (res) => {
                 handleRember(values);
-                toast({ title: "登录成功", status: "success", description: res, position: "top-right" })
+                toast({ title: "登录成功", status: "success", description: res })
                 await navigate({ to: InfoRoute.to })
             }).catch((err: AxiosError) => {
                 toast({ title: "登录失败", status: "error", description: err.response?.data as string || "网络错误" })
@@ -62,7 +62,7 @@ export default function LoginWithPasswordComponent() {
         postRegister(values.qq, values.password)
             .then(async (res) => {
                 handleRember(values);
-                toast({ title: "注册成功", status: "success", description: res, position: "top-right" })
+                toast({ title: "注册成功", status: "success", description: res })
                 await navigate({ to: InfoRoute.to })
             }).catch((err: AxiosError) => {
                 toast({ title: "注册失败", status: "error", description: err.response?.data as string || "网络错误" })

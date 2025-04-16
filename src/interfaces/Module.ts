@@ -76,4 +76,4 @@ export interface ConfigInfo {
 }
 
 export type ConfigValue = number | string | boolean | (string | number)[];
-export type ConfigType = "bool" | "int" | "single" | "multi" | "time" | "text";
+export type ConfigType = "bool" | "int" | "single" | "multi" | "time" | "text" | "unitlist" | 'table';
