@@ -32,29 +32,13 @@ import {
     IconButton,
     Tooltip,
     useColorModeValue,
-} from '@chakra-ui/react'
+} from '@chakra-ui/react';
 
-import { Route as DashBoardRoute } from "@routes/daily/_sidebar/account/index";
-import { Route as LoginRoute } from "@routes/daily/login";
-import {
-    FiActivity,
-    FiCopy,
-    FiSettings,
-    FiTarget,
-    FiUser,
-    FiGrid,
-    FiList,
-    FiUserMinus,
-    FiUserPlus,
-    FiUpload,
-    FiKey,
-    FiUserX,
-    FiLayers,
-    FiStar,
-    FiCheck,
-} from "react-icons/fi";
+import { Route as DashBoardRoute } from '@routes/daily/_sidebar/account/index';
+import { Route as LoginRoute } from '@routes/daily/login';
+import { FiActivity, FiCopy, FiSettings, FiTarget, FiUser, FiGrid, FiList, FiUserMinus, FiUserPlus, FiUpload, FiKey, FiUserX, FiLayers, FiStar, FiCheck } from 'react-icons/fi';
 import { postAccountImport, delAccount, postAccount, postAccountAreaDaily } from '@api/Account';
-import { useDisclosure } from '@chakra-ui/react'
+import { useDisclosure } from '@chakra-ui/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import NiceModal from '@ebay/nice-modal-react';
@@ -62,8 +46,8 @@ import ResultInfoModal from './ResultInfoModal';
 import ReadmeModal from './ReadmeModal';
 import Alert from '../alert';
 
-const handle: Map<string, (arg0: boolean) => void> = new Map<string, (arg0: boolean) => void>()
-import { FocusableElement } from "@chakra-ui/utils"
+const handle: Map<string, (arg0: boolean) => void> = new Map<string, (arg0: boolean) => void>();
+import { FocusableElement } from '@chakra-ui/utils';
 import { useCountHook } from '../count';
 import { AxiosError } from 'axios';
 import resetPasswdModal from '../Users/ResetPasswdModal';
