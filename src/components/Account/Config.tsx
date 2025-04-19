@@ -4,6 +4,8 @@ import { putAccountConfig } from '@/api/Account';
 import { ChangeEventHandler, FocusEventHandler, useEffect, useState, useCallback } from 'react';
 import { AxiosError } from 'axios';
 import { SearchIcon, ChevronDownIcon, CloseIcon } from '@chakra-ui/icons';
+import NiceModal from '@ebay/nice-modal-react';
+import multiSelectModal from './MultiSelectModal';
 
 interface ConfigProps {
     alias: string,
@@ -26,8 +28,8 @@ export default function Config({ alias, value, info }: ConfigProps) {
             return <ConfigTime alias={alias} value={value} info={info} />
         case 'text':
             return <ConfigText alias={alias} value={value} info={info} />
-        case 'unitlist':
-            return <ConfigUnitList alias={alias} value={value} info={info} />
+        case 'multi_search':
+            return <ConfigMultiSearch alias={alias} value={value} info={info} />
         case 'table':
             return <ConfigTable alias={alias} value={value} info={info} />
     }
@@ -72,7 +74,7 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
                 {info.desc}
             </InputLeftAddon>
 
-            <NumberInput onChange={onChange} id={info.key} defaultValue={value as number} min={Math.min(...info.candidates as number[])} max={Math.max(...info.candidates as number[])}>
+            <NumberInput onChange={onChange} id={info.key} defaultValue={value as number} min={Math.min(...info.candidates.map(c => c.value) as number[])} max={Math.max(...info.candidates.map(c => c.value) as number[])}>
                 <NumberInputField />
                 <NumberInputStepper>
                     <NumberIncrementStepper />
@@ -106,7 +108,7 @@ function ConfigSingle({ alias, value, info }: ConfigProps) {
             <Select onChange={onChange} id={info.key} defaultValue={value as string | number} >
                 {
                     info.candidates.map((element) => {
-                        return <option key={element as string | number} value={element as string | number} >{element}</option>
+                        return <option key={element.value as string | number} value={element.value as string | number} >{element.display}</option>
                     })
                 }
             </Select>
@@ -139,7 +141,7 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
                     <Stack spacing={[1, 5]} direction={['column', 'row']}>
                         {
                             info.candidates.map((element) => {
-                                return <Checkbox key={element as string | number} value={String(element) as string | number} >{element}</Checkbox>
+                                return <Checkbox key={element.value as string | number} value={String(element.value) as string | number} >{element.display}</Checkbox>
                             })
                         }
                     </Stack>
@@ -192,465 +194,41 @@ function ConfigText({ alias, value, info }: ConfigProps) {
     )
 }
 
-function ConfigUnitList({ alias, value, info }: ConfigProps) {
+function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
     const toast = useToast();
-    const { isOpen, onOpen, onClose } = useDisclosure();
-    const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
-    const [displayValue, setDisplayValue] = useState<string>("");
-    const [allUnits, setAllUnits] = useState<{ id: string, name: string }[]>([]);
-    const [availableUnits, setAvailableUnits] = useState<{ id: string, name: string }[]>([]);
-    const [filteredAvailableUnits, setFilteredAvailableUnits] = useState<{ id: string, name: string }[]>([]);
-    const [filteredSelectedUnits, setFilteredSelectedUnits] = useState<{ id: string, name: string }[]>([]);
-    const [searchAllText, setSearchAllText] = useState("");
-    const [searchSelectedText, setSearchSelectedText] = useState("");
-    const [draggedUnit, setDraggedUnit] = useState<string | null>(null);
-    // 预先计算颜色值，避免在回调中使用hooks
-    const allUnitsBgColor = useColorModeValue("gray.50", "gray.700");
-    const hoverBgColor = useColorModeValue("gray.100", "gray.600");
+    const [localValue, setLocalValue] = useState<ConfigValue>(value);
 
-    // 初始化数据
-    useEffect(() => {
+    const displayValue = (localValue as number[]).map((id) => {
+        const unit = info.candidates.find((unit) => unit.value === id);
+        return unit ? unit.display : String(id);
+    });
+
+    const handleClick = async (): Promise<void> => {
         try {
-            // 防御性检查
-            if (!info?.candidates) {
-                console.error("无效的配置信息:", info);
-                setDisplayValue("配置数据错误");
-                return;
-            }
-
-            // 解析所有角色数据
-            const units = info.candidates.map(candidate => {
-                try {
-                    const [id, name] = String(candidate).split(':');
-                    return { id: id.trim(), name }; // 确保ID没有空格
-                } catch (e) {
-                    console.error("解析角色数据错误:", e, candidate);
-                    return { id: String(candidate).trim(), name: String(candidate) };
-                }
+            const ret: ConfigValue = await NiceModal.show<ConfigValue>(multiSelectModal, {
+                candidates: info.candidates,
+                value: localValue,
             });
-
-            // 设置所有角色数据
-            setAllUnits(units);
-
-            // 解析已选择的角色 - 这里处理的是 value 参数，而不是 info.key
-            let selectedIds: string[] = [];
-
-            console.log("当前value类型:", typeof value, "值:", value);
-
-            if (Array.isArray(value)) {
-                // 如果已经是数组格式，直接使用，并确保每个ID都是干净的字符串
-                selectedIds = value.map(v => String(v).trim());
-            } else if (typeof value === 'string' && value) {
-                // 向后兼容：如果是字符串格式，转换为数组
-                selectedIds = value.split(',').map(id => id.trim()).filter(id => id !== '');
-            }
-
-            // 更新选中的角色ID列表
-            setSelectedUnits(selectedIds);
-
-            // 设置显示值 - 将ID转换为名称
-            const selectedNames = selectedIds.map(id => {
-                const unit = units.find(u => u.id === id);
-                return unit ? unit.name : id;
-            });
-            setDisplayValue(selectedNames.join(', ') || "未选择角色");
-
-            // 设置已选择的角色对象列表 - 用于UI显示
-            const selectedUnitObjects = selectedIds.map(id => {
-                const unit = units.find(u => u.id === id);
-                return unit ? unit : { id, name: id };
-            });
-            setFilteredSelectedUnits(selectedUnitObjects);
-
-            // 设置可选择的角色列表 - 排除已选择的角色
-            const availableUnitsList = units.filter(unit => !selectedIds.includes(unit.id));
-            setAvailableUnits(availableUnitsList);
-            setFilteredAvailableUnits(availableUnitsList);
-        } catch (error) {
-            console.error("ConfigUnitList 初始化错误:", error);
-            setDisplayValue("组件初始化错误");
+            const res: string = await putAccountConfig(alias, info.key, ret);
+            setLocalValue(ret);
+            toast({ status: "success", title: "保存成功", description: res });
+            await NiceModal.hide(multiSelectModal);
+        } catch (err) {
+            const axiosErr = err as AxiosError;
+            toast({ status: "error", title: "保存失败", description: axiosErr.response?.data as string || "网络错误" });
         }
-    }, [value, info.candidates, info]);
-
-    // 搜索可选择角色
-    const handleSearchAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const searchText = e.target.value.toLowerCase();
-        setSearchAllText(searchText);
-        if (!searchText) {
-            setFilteredAvailableUnits(availableUnits);
-        } else {
-            const filtered = availableUnits.filter(unit =>
-                unit.name.toLowerCase().includes(searchText) ||
-                unit.id.toLowerCase().includes(searchText)
-            );
-            setFilteredAvailableUnits(filtered);
-        }
-    };
-
-    // 搜索已选择角色
-    const handleSearchSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const searchText = e.target.value.toLowerCase();
-        setSearchSelectedText(searchText);
-
-        const selectedUnitObjects = selectedUnits.map(id => {
-            const unit = allUnits.find(u => u.id === id);
-            return unit ? unit : { id, name: id };
-        });
-
-        if (!searchText) {
-            setFilteredSelectedUnits(selectedUnitObjects);
-        } else {
-            const filtered = selectedUnitObjects.filter(unit =>
-                unit.name.toLowerCase().includes(searchText) ||
-                unit.id.toLowerCase().includes(searchText)
-            );
-            setFilteredSelectedUnits(filtered);
-        }
-    };
-
-    // 添加角色
-    const addUnit = (unit: { id: string, name: string }) => {
-        if (!selectedUnits.includes(unit.id)) {
-            const newSelectedUnits = [...selectedUnits, unit.id];
-            setSelectedUnits(newSelectedUnits);
-
-            // 更新已选择的角色列表
-            const selectedUnitObjects = newSelectedUnits.map(id => {
-                const u = allUnits.find(unit => unit.id === id);
-                return u ? u : { id, name: id };
-            });
-
-            // 应用搜索过滤
-            if (searchSelectedText) {
-                const filtered = selectedUnitObjects.filter(unit =>
-                    unit.name.toLowerCase().includes(searchSelectedText) ||
-                    unit.id.toLowerCase().includes(searchSelectedText)
-                );
-                setFilteredSelectedUnits(filtered);
-            } else {
-                setFilteredSelectedUnits(selectedUnitObjects);
-            }
-
-            // 更新可选择的角色列表 - 移除刚添加的角色
-            const newAvailableUnits = availableUnits.filter(u => u.id !== unit.id);
-            setAvailableUnits(newAvailableUnits);
-
-            // 应用搜索过滤
-            if (searchAllText) {
-                const filtered = newAvailableUnits.filter(unit =>
-                    unit.name.toLowerCase().includes(searchAllText) ||
-                    unit.id.toLowerCase().includes(searchAllText)
-                );
-                setFilteredAvailableUnits(filtered);
-            } else {
-                setFilteredAvailableUnits(newAvailableUnits);
-            }
-        }
-    };
-
-    // 移除角色
-    const removeUnit = (unit: { id: string, name: string }) => {
-        const newSelectedUnits = selectedUnits.filter(id => id !== unit.id);
-        setSelectedUnits(newSelectedUnits);
-
-        // 更新已选择的角色列表
-        const selectedUnitObjects = newSelectedUnits.map(id => {
-            const u = allUnits.find(unit => unit.id === id);
-            return u ? u : { id, name: id };
-        });
-
-        // 应用搜索过滤
-        if (searchSelectedText) {
-            const filtered = selectedUnitObjects.filter(unit =>
-                unit.name.toLowerCase().includes(searchSelectedText) ||
-                unit.id.toLowerCase().includes(searchSelectedText)
-            );
-            setFilteredSelectedUnits(filtered);
-        } else {
-            setFilteredSelectedUnits(selectedUnitObjects);
-        }
-
-        // 更新可选择的角色列表 - 添加刚移除的角色
-        const unitToAdd = allUnits.find(u => u.id === unit.id);
-        if (unitToAdd) {
-            const newAvailableUnits = [...availableUnits, unitToAdd];
-            setAvailableUnits(newAvailableUnits);
-
-            // 应用搜索过滤
-            if (searchAllText) {
-                const filtered = newAvailableUnits.filter(unit =>
-                    unit.name.toLowerCase().includes(searchAllText) ||
-                    unit.id.toLowerCase().includes(searchAllText)
-                );
-                setFilteredAvailableUnits(filtered);
-            } else {
-                setFilteredAvailableUnits(newAvailableUnits);
-            }
-        }
-    };
-    // 移动角色到指定位置
-    const moveUnit = (fromIndex: number, toIndex: number) => {
-        if (fromIndex === toIndex) return;
-
-        const newSelectedUnits = [...selectedUnits];
-        const [movedUnit] = newSelectedUnits.splice(fromIndex, 1);
-        newSelectedUnits.splice(toIndex, 0, movedUnit);
-
-        setSelectedUnits(newSelectedUnits);
-
-        // 更新已选择的角色列表
-        const selectedUnitObjects = newSelectedUnits.map(id => {
-            const u = allUnits.find(unit => unit.id === id);
-            return u ? u : { id, name: id };
-        });
-
-        // 应用搜索过滤
-        if (searchSelectedText) {
-            const filtered = selectedUnitObjects.filter(unit =>
-                unit.name.toLowerCase().includes(searchSelectedText) ||
-                unit.id.toLowerCase().includes(searchSelectedText)
-            );
-            setFilteredSelectedUnits(filtered);
-        } else {
-            setFilteredSelectedUnits(selectedUnitObjects);
-        }
-    };
-
-    // 拖拽开始
-    const handleDragStart = (unitId: string) => {
-        setDraggedUnit(unitId);
-    };
-
-    // 拖拽结束
-    const handleDragEnd = () => {
-        setDraggedUnit(null);
-    };
-
-    // 拖拽悬停
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-    };
-
-    // 放置
-    const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-        e.preventDefault();
-        if (draggedUnit === null) return;
-
-        const sourceIndex = selectedUnits.indexOf(draggedUnit);
-        if (sourceIndex !== -1) {
-            moveUnit(sourceIndex, targetIndex);
-        }
-    };
-    // 保存选择
-    const saveSelection = () => {
-        // 确保没有空字符串，并转换为数字类型
-        const validSelectedUnits = selectedUnits
-            .filter(id => id.trim() !== '')
-            .map(id => parseInt(id.trim(), 10)); // 转换为数字
-
-        // 直接使用数组格式保存，而不是字符串
-        console.log("保存的数组:", validSelectedUnits);
-
-        putAccountConfig(alias, info.key, validSelectedUnits).then((res) => {
-            console.log("保存成功，服务器响应:", res);
-            toast({ status: 'success', title: '保存成功', description: res });
-
-            // 更新显示值
-            const selectedNames = validSelectedUnits.map(id => {
-                const unit = allUnits.find(u => u.id === String(id));
-                return unit ? unit.name : String(id);
-            });
-            setDisplayValue(selectedNames.join(', ') || "未选择角色");
-
-            // 保存到本地存储，作为备份
-            try {
-                localStorage.setItem(`unitlist_${alias}_${info.key}`, JSON.stringify(validSelectedUnits));
-            } catch (e) {
-                console.error("本地存储失败:", e);
-            }
-
-            onClose();
-        }).catch((err: AxiosError) => {
-            console.error("保存失败:", err);
-            toast({ status: 'error', title: '保存失败', description: err.response?.data as string || "网络错误" });
-        });
-    };
-    // 排序函数
-    const sortUnits = (type: 'name' | 'id' | 'id-desc') => {
-        const newSelectedUnits = [...selectedUnits];
-
-        if (type === 'name') {
-            newSelectedUnits.sort((a, b) => {
-                const unitA = allUnits.find(u => u.id === a);
-                const unitB = allUnits.find(u => u.id === b);
-                return (unitA?.name ?? '').localeCompare(unitB?.name ?? '');
-            });
-        } else if (type === 'id') {
-            newSelectedUnits.sort((a, b) => parseInt(a) - parseInt(b));
-        } else if (type === 'id-desc') {
-            newSelectedUnits.sort((a, b) => parseInt(b) - parseInt(a));
-        }
-
-        setSelectedUnits(newSelectedUnits);
-
-        // 更新已选择的角色列表
-        const selectedUnitObjects = newSelectedUnits.map(id => {
-            const u = allUnits.find(unit => unit.id === id);
-            return u ? u : { id, name: id };
-        });
-
-        setFilteredSelectedUnits(selectedUnitObjects);
     };
 
     return (
-        <>
-            <InputGroup>
-                <InputLeftAddon>
-                    {info.desc}
-                </InputLeftAddon>
-                <Input value={displayValue} isReadOnly onClick={onOpen} cursor="pointer" />
-                <InputRightAddon>
-                    <Button size="sm" onClick={onOpen}>选择</Button>
-                </InputRightAddon>
-            </InputGroup>
-
-            <Modal isOpen={isOpen} onClose={onClose} size="xl">
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>选择角色</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        <Flex direction={{ base: "column", md: "row" }} height="700px">
-                            {/* 左侧：可选择的角色 */}
-                            <VStack flex="1" spacing={2} align="stretch" mr={{ base: 0, md: 2 }} mb={{ base: 4, md: 0 }}>
-                                <Text fontWeight="bold">可选择角色 ({availableUnits.length})</Text>
-                                <InputGroup size="sm">
-                                    <InputLeftAddon>
-                                        <SearchIcon />
-                                    </InputLeftAddon>
-                                    <ChakraInput
-                                        placeholder="搜索角色..."
-                                        value={searchAllText}
-                                        onChange={handleSearchAll}
-                                    />
-                                </InputGroup>
-                                <Box
-                                    flex="1"
-                                    overflowY="auto"
-                                    borderWidth="1px"
-                                    borderRadius="md"
-                                    p={2}
-                                    bg={allUnitsBgColor}
-                                >
-                                    {filteredAvailableUnits.map(unit => (
-                                        <Box
-                                            key={unit.id}
-                                            p={2}
-                                            borderRadius="md"
-                                            _hover={{ bg: hoverBgColor }}
-                                            cursor="pointer"
-                                            onClick={() => addUnit(unit)}
-                                            display="flex"
-                                            justifyContent="space-between"
-                                            alignItems="center"
-                                        >
-                                            <Text>{unit.name}</Text>
-                                            <Text fontSize="xs" color="gray.500">{unit.id}</Text>
-                                        </Box>
-                                    ))}
-                                </Box>
-                            </VStack>
-
-                            {/* 中间：分隔线 */}
-                            <Divider orientation="vertical" display={{ base: "none", md: "block" }} />
-                            <Divider orientation="horizontal" display={{ base: "block", md: "none" }} />
-
-                            {/* 右侧：已选择角色 */}
-                            <VStack flex="1" spacing={2} align="stretch" ml={{ base: 0, md: 2 }} mt={{ base: 4, md: 0 }}>
-                                <Text fontWeight="bold">已选择角色 ({selectedUnits.length})</Text>
-                                <InputGroup size="sm">
-                                    <InputLeftAddon>
-                                        <SearchIcon />
-                                    </InputLeftAddon>
-                                    <ChakraInput
-                                        placeholder="搜索已选择角色..."
-                                        value={searchSelectedText}
-                                        onChange={handleSearchSelected}
-                                    />
-                                </InputGroup>
-                                <Box
-                                    flex="1"
-                                    overflowY="auto"
-                                    borderWidth="1px"
-                                    borderRadius="md"
-                                    p={2}
-                                    bg={allUnitsBgColor}
-                                >
-                                    {!searchSelectedText && (
-                                        <Text fontSize="xs" color="gray.500" mb={2}>
-                                            提示：拖拽角色可调整顺序
-                                        </Text>
-                                    )}
-                                    {filteredSelectedUnits.map((unit, index) => {
-                                        const actualIndex = selectedUnits.indexOf(unit.id);
-                                        return (
-                                            <Box
-                                                key={unit.id}
-                                                p={2}
-                                                borderRadius="md"
-                                                bg={draggedUnit === unit.id ? "gray.300" : "transparent"}
-                                                _hover={{ bg: hoverBgColor }}
-                                                cursor="grab"
-                                                display="flex"
-                                                justifyContent="space-between"
-                                                alignItems="center"
-                                                draggable={!searchSelectedText}
-                                                onDragStart={() => handleDragStart(unit.id)}
-                                                onDragEnd={handleDragEnd}
-                                                onDragOver={(e) => handleDragOver(e)}
-                                                onDrop={(e) => handleDrop(e, actualIndex)}
-                                            >
-                                                <HStack flex="1">
-                                                    <Text>{index + 1}.</Text>
-                                                    <Text flex="1">{unit.name}</Text>
-                                                </HStack>
-                                                <HStack>
-                                                    <Text fontSize="xs" color="gray.500">{unit.id}</Text>
-                                                    <IconButton
-                                                        aria-label="移除"
-                                                        icon={<CloseIcon />}
-                                                        size="xs"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            removeUnit(unit);
-                                                        }}
-                                                    />
-                                                </HStack>
-                                            </Box>
-                                        );
-                                    })}
-                                </Box>
-                                <HStack>
-                                    <Menu>
-                                        <MenuButton as={Button} size="sm" rightIcon={<ChevronDownIcon />}>
-                                            排序
-                                        </MenuButton>
-                                        <MenuList>
-                                            <MenuItem onClick={() => sortUnits('name')}>按名称排序</MenuItem>
-                                            <MenuItem onClick={() => sortUnits('id')}>按ID排序</MenuItem>
-                                            <MenuItem onClick={() => sortUnits('id-desc')}>按ID倒序</MenuItem>
-                                        </MenuList>
-                                    </Menu>
-                                    <Button colorScheme="blue" flex="1" onClick={saveSelection}>
-                                        保存
-                                    </Button>
-                                </HStack>
-                            </VStack>
-                        </Flex>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
-        </>
+        <InputGroup>
+            <InputLeftAddon>
+                {info.desc}
+            </InputLeftAddon>
+            <Input value={displayValue} isReadOnly onClick={handleClick} cursor="pointer" />
+            <InputRightAddon>
+                <Button size="sm" onClick={handleClick}>选择</Button>
+            </InputRightAddon>
+        </InputGroup>
     );
 }
 
