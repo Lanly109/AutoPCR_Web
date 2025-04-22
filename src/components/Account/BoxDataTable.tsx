@@ -189,9 +189,9 @@ export function BoxDataTable({ logContent }: BoxDataTableProps) {
     const infoColumns = userData[0]?.user_info?.length ? userData[0].user_info : [];
 
     return (
-        <Box mt={4} rounded="lg" bg={bgColor} boxShadow="lg" overflow="auto">
+        <Box mt={4} rounded="lg" bg={bgColor} boxShadow="lg">
             <TableContainer>
-                <Table size="sm" variant="simple" maxW="80%">
+                <Table size="sm" variant="unstyled" maxW="80%">
                     <Thead position="sticky" top={0} zIndex={1} bg={headerBgColor}>
                         <Tr>
                             <Th rowSpan={2} outline="1px solid gray" p={1} position="sticky" left={0} bg={headerBgColor} zIndex={2}>
@@ -257,7 +257,7 @@ export function BoxDataTable({ logContent }: BoxDataTableProps) {
                     </Thead>
                     <Tbody>
                         {sortedUserUnitMaps.map(({ user, unitMap }) => (
-                            <Tr key={user.uid ?? Math.random()}>
+                            <Tr key={user.uid}>
                                 <Td outline="1px solid gray" p={1} position="sticky" left={0} bg={headerBgColor} zIndex={2}>
                                     {user.user_name}
                                 </Td>
