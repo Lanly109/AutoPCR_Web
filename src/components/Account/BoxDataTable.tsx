@@ -194,7 +194,7 @@ export function BoxDataTable({ logContent }: BoxDataTableProps) {
                 <Table size="sm" variant="simple" maxW="80%">
                     <Thead position="sticky" top={0} zIndex={1} bg={headerBgColor}>
                         <Tr>
-                            <Th rowSpan={2} border="1px solid gray" p={1} position="sticky" left={0} bg={headerBgColor} zIndex={2}>
+                            <Th rowSpan={2} outline="1px solid gray" p={1} position="sticky" left={0} bg={headerBgColor} zIndex={2}>
                                 用户名
                             </Th>
                             {infoColumns.includes('UID') && (
@@ -258,36 +258,36 @@ export function BoxDataTable({ logContent }: BoxDataTableProps) {
                     <Tbody>
                         {sortedUserUnitMaps.map(({ user, unitMap }) => (
                             <Tr key={user.uid ?? Math.random()}>
-                                <Td fontWeight="bold" border="1px solid gray" p={1} position="sticky" left={0} bg={bgColor} zIndex={2}>
+                                <Td outline="1px solid gray" p={1} position="sticky" left={0} bg={headerBgColor} zIndex={2}>
                                     {user.user_name}
                                 </Td>
                                 {infoColumns.includes('UID') && (
-                                    <Td border="1px solid gray" p={1}>
+                                    <Td border="1px solid gray" p={1} bg={headerBgColor}>
                                         {user.uid}
                                     </Td>
                                 )}
                                 {infoColumns.includes('数据时间') && (
-                                    <Td border="1px solid gray" p={1}>
+                                    <Td border="1px solid gray" p={1} bg={headerBgColor}>
                                         {user.data_time}
                                     </Td>
                                 )}
                                 {infoColumns.includes('钻石') && (
-                                    <Td border="1px solid gray" p={1}>
+                                    <Td border="1px solid gray" p={1} bg={headerBgColor}>
                                         {user.jewel?.toLocaleString()}
                                     </Td>
                                 )}
                                 {infoColumns.includes('母猪石') && (
-                                    <Td border="1px solid gray" p={1}>
+                                    <Td border="1px solid gray" p={1} bg={headerBgColor}>
                                         {user.mother_stone?.toLocaleString()}
                                     </Td>
                                 )}
                                 {infoColumns.includes('星球杯') && (
-                                    <Td border="1px solid gray" p={1}>
+                                    <Td border="1px solid gray" p={1} bg={headerBgColor}>
                                         {user.star_cup?.toLocaleString()}
                                     </Td>
                                 )}
                                 {infoColumns.includes('心碎') && (
-                                    <Td border="1px solid gray" p={1}>
+                                    <Td border="1px solid gray" p={1} bg={headerBgColor}>
                                         {user.heart_fragment?.toLocaleString()}
                                     </Td>
                                 )}
