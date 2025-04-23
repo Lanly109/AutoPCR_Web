@@ -35,6 +35,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
 
     const handleSave = () => {
         modal.resolve(selectedUnits);
+        modal.remove();
     };
 
     const handleClose = () => {
