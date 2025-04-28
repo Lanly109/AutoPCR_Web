@@ -29,5 +29,16 @@ module.exports = {
       "attributes": false
      }
     }]
-  },
+    },
+    overrides: [
+    {
+      // 针对使用 XLSX 库的文件
+      files: ['**/ExcelExport.tsx'],
+      rules: {
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+      }
+    }
+  ]
 }

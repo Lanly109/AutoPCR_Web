@@ -1,12 +1,12 @@
 import { Fetch } from '@api/APIUtils';
 import { ModuleResult as ModuleResultInterface } from '@/interfaces/ModuleResult';
-import { Table, Thead, Tbody, Tr, Th, TableContainer, useColorModeValue, Td, useToast } from '@chakra-ui/react';
+import { Table, Thead, Tbody, Tr, Th, TableContainer, useColorModeValue, Td, useToast, HStack } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { MemoryTable } from './MemoryTable';
 import { parseMemoryTable } from './MemoryUtils';
-import { DownloadLink } from './DownloadLink';
 import { BoxDataTable } from './BoxDataTable';
+import { ExcelExport } from './ExcelExport';
 
 interface SingleResultProps {
     resultData: ModuleResultInterface | null;
@@ -30,13 +30,13 @@ export function SingleResult({ url }: { url: string }) {
 function SingleResultTable({ resultData }: SingleResultProps) {
     // 检查是否为需要表格显示的模块
     const tableModules = ['获取纯净碎片缺口', '获取记忆碎片缺口'];
-    // 检查是否为需要显示下载链接的模块
-    const downloadModules = ['导出box练度excel'];
+    // 检查是否为需要显示Excel导出按钮的模块
+    const excelModules = ['导出box练度excel'];
     // 检查是否为需要显示角色练度表格的模块
     const boxDataModules = ['查box（多选）'];
 
     const isTableModule = resultData?.name ? tableModules.includes(resultData.name) : false;
-    const isDownloadModule = resultData?.name ? downloadModules.includes(resultData.name) : false;
+    const isExcelModule = resultData?.name ? excelModules.includes(resultData.name) : false;
     const isBoxDataModule = resultData?.name ? boxDataModules.includes(resultData.name) : false;
 
     const tableData = isTableModule && resultData?.log ? parseMemoryTable(resultData.log) : { items: [], accountNames: [] };
@@ -64,8 +64,12 @@ function SingleResultTable({ resultData }: SingleResultProps) {
                             <Tr>
                                 <Td>结果</Td>
                                 <Td style={{ whiteSpace: 'pre-wrap' }}>
-                                    {isDownloadModule && <DownloadLink logContent={resultData?.log} />}
-                                    {isDownloadModule ? resultData?.log?.replace(/下载链接: \/[^\s]+/g, '') : resultData?.log}
+                                    {isExcelModule && (
+                                        <HStack spacing={4} mb={2}>
+                                            <ExcelExport logContent={resultData?.log} fileName="box_data" />
+                                        </HStack>
+                                    )}
+                                    {resultData?.log?.replace(/BOX_EXCEL_DATA: {.*}/g, '')}
                                 </Td>
                             </Tr>
                         )}

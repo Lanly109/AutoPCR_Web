@@ -197,7 +197,7 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
 
     const displayValue = (localValue as number[]).map((id) => {
         const unit = info.candidates.find((unit) => unit.value === id);
-        return unit ? unit.display : String(id);
+        return unit ? (unit.nickname ? unit.nickname : unit.display) : String(id);
     });
 
     const handleClick = async (): Promise<void> => {

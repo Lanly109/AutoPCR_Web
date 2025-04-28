@@ -82,7 +82,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
 
     const selectedObjects = selectedUnits.map((id) => {
         const u = candidates.find((u) => u.value === id);
-        return u ?? { value: id, display: id, tags: [] };
+        return u ?? { value: id, display: id, tags: [], nickname: null };
     });
 
     const filteredSelected = selectedObjects.filter(u =>
@@ -104,7 +104,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
                             <Box maxH="600px" overflowY="auto" bg={bg} p={2} borderRadius="md">
                                 {filteredAvailable.map((u, id) => (
                                     <Box key={id} p={1} cursor="pointer" _hover={{ bg: 'blue.100' }} onClick={() => handleAdd(u.value)}>
-                                        {u.display}
+                                        {u.nickname ? u.nickname : u.display}
                                     </Box>
                                 ))}
                             </Box>
@@ -140,7 +140,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
                                                 justifyContent="space-between"
                                                 alignItems="center"
                                             >
-                                                {u.display}
+                                                {u.nickname ? u.nickname : u.display}
                                                 <IconButton aria-label="移除" icon={<CloseIcon />} size="xs" onClick={() => handleRemove(u.value)} />
                                             </Box>
                                         </Flex>

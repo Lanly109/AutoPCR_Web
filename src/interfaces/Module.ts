@@ -87,7 +87,11 @@ export interface Candidate {
 	/**
 	* 信息
 	*/
-	tags: string[]
+    tags: string[]
+    /**
+	* 昵称
+	*/
+    nickname?: string;
 }
 
 export type ConfigValue = number | string | boolean | (string | number)[];
