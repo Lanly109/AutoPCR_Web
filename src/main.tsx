@@ -7,7 +7,7 @@ import theme from './theme'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     // <React.StrictMode>
-    <ChakraProvider toastOptions={{ defaultOptions: { position: 'bottom', duration: 2500 } }} theme={theme}>
+    <ChakraProvider toastOptions={{ defaultOptions: { position: 'top-right', duration: 2500, isClosable: true } }} theme={theme}>
         <NiceModal.Provider>
             <App />
         </NiceModal.Provider>
