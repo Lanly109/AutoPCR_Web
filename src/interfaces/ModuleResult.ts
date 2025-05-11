@@ -11,6 +11,21 @@ export interface ModuleResultResponse {
 	result: Record<string, ModuleResult>;
 }
 
+export type HeaderItem =
+  | string
+  | { [key: string]: HeaderItem[] };
+
+export type DataItem = string | number | {
+  [key: string]: DataItem;
+};
+
+export type DataRow = Record<string, DataItem>;
+
+export interface iTableResult {
+	header: HeaderItem[];
+	data: DataRow[];
+}
+
 export interface ModuleResult {
 	/**
 	* 模块名称
@@ -28,6 +43,10 @@ export interface ModuleResult {
 	* 模块日志
 	*/
 	log: string;
+	/**
+	* 模块结果表格
+	*/
+	table: iTableResult;
 }
 
 export type ModuleResultStatus = "成功" | "错误" | "中止" | "跳过";
