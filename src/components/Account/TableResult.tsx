@@ -1,6 +1,7 @@
 import { DataItem, HeaderItem, iTableResult } from '@interfaces/ModuleResult';
-import { Table, Thead, Tbody, Tr, Th, Td, TableContainer, useColorModeValue, Box, Flex } from '@chakra-ui/react';
+import { Table, Thead, Tbody, Tr, Th, Td, TableContainer, useColorModeValue, Box, Flex, Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
+import NiceModal, { useModal } from '@ebay/nice-modal-react';
 
 type SortConfig = {
     key: string
@@ -10,11 +11,12 @@ type SortConfig = {
 interface HeaderColumn {
     header: HeaderItem
     parent: string
+    index: number
 }
 
 export function TableResult({ header, data }: iTableResult) {
-    const color1 = useColorModeValue('blue.50', 'blue.900');
-    const color2 = useColorModeValue('green.50', 'green.900');
+    const color1 = useColorModeValue('blue.50', 'blue.800');
+    const color2 = useColorModeValue('green.50', 'green.800');
 
     const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
@@ -61,12 +63,12 @@ export function TableResult({ header, data }: iTableResult) {
         const maxDepth = getDepth(header)
 
         const headerRows: HeaderColumn[][] = Array.from({ length: maxDepth }, () => [])
-        const buildRows = (defs: HeaderItem[], level = 0, prefix = "") => {
-            defs.forEach(h => {
-                headerRows[level].push({ header: h, parent: prefix })
+        const buildRows = (defs: HeaderItem[], level = 0, prefix = "", index = -1) => {
+            defs.forEach((h, i) => {
+                headerRows[level].push({ header: h, parent: prefix, index: index == -1 ? i : index })
                 if (typeof h !== 'string') {
                     const key = Object.keys(h)[0]
-                    buildRows(h[key], level + 1, `${prefix}${key}.`)
+                    buildRows(h[key], level + 1, `${prefix}${key}.`, i)
                 }
             })
         }
@@ -81,6 +83,8 @@ export function TableResult({ header, data }: iTableResult) {
                 ? 1
                 : countLeaves(h[Object.keys(h)[0]]))
         }, 0)
+
+    const ROW_HEIGHT = 25;
 
     const renderHeaderRow = (row: HeaderColumn[], level: number) => {
         const cells: React.ReactNode[] = []
@@ -102,6 +106,8 @@ export function TableResult({ header, data }: iTableResult) {
             }
             const sortkey = `${parent}${label}`;
 
+            const color = row[i].index % 2 == 0 ? color1 : color2;
+
             cells.push(
                 <Th
                     key={`${level}-${i}`}
@@ -111,11 +117,10 @@ export function TableResult({ header, data }: iTableResult) {
                     outline="1px solid gray"
                     p={1}
                     textAlign="center"
-                    position={level === 0 ? 'sticky' : undefined}
-                    top={level === 0 ? 0 : undefined}
-                    left={i === 0 ? 0 : undefined}
-                    {...(i === 0 && level === 0 ? { zIndex: 2 } : { zIndex: 0 })}
-                    {...(level === 0 ? i % 2 == 0 ? { bg: color1 } : { bg: color2 } : {})}
+                    position="sticky"
+                    top={`${level * ROW_HEIGHT}px`}
+                    {...(level === 0 && i == 0 ? { left: 0, zIndex: 200 } : { zIndex: 100 - level })}
+                    bg={color}
                     {...(isLeaf ? {
                         onClick: () => {
                             setSortConfig(prev => {
@@ -147,10 +152,14 @@ export function TableResult({ header, data }: iTableResult) {
         row: DataItem,
         ri: number,
         prefix = '',
+        index = -1
     ): React.ReactNode[] => {
         return defs.flatMap((def, ci) => {
             if (typeof def === 'string') {
-                return <Td outline="1px solid gray" key={`ceil-${def}-${prefix}-${ri}-${ci}`}>{(row as Record<string, DataItem>)[def] as string ?? ''}</Td>
+                return <Td outline="1px solid gray" key={`ceil-${def}-${prefix}-${ri}-${ci}`}
+                    bg={index == -1 ? ci % 2 == 0 ? color1 : color2 : index % 2 == 0 ? color1 : color2}
+                >{(row as Record<string, DataItem>)[def] as string ?? ''}
+                </Td>
             } else {
                 const key = Object.keys(def)[0]
                 const children = def[key]
@@ -161,32 +170,60 @@ export function TableResult({ header, data }: iTableResult) {
                 ) {
                     return <Td outline="1px solid gray" key={`ceil-${key}-${prefix}-${ri}-${ci}`}>{groupVal}</Td>
                 }
-                return renderRowCells(children, groupVal || {}, ri, `${prefix}${key}.`)
+                return renderRowCells(children, groupVal || {}, ri, `${prefix}${key}.`, index == -1 ? ci : index)
             }
         })
     }
 
     return (
-        <Box mt={4} rounded="lg" boxShadow="lg">
-            <TableContainer
-                rounded="lg"
-                boxShadow="lg"
-                overflowX="auto"
-                maxHeight="70vh"
+        <TableContainer
+            rounded="lg"
+            boxShadow="lg"
+            overflowX="auto"
+            overflowY="auto"
+            maxH="calc(100vh - 100px)"
+        >
+            <Table size="sm" variant="unstyled"
+                sx={{
+                    'td:first-of-type': {
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 1,
+                        border: '1px solid gray',
+                    },
+                }}
             >
-                <Table size="sm" variant="unstyled" maxW="80%">
-                    <Thead>
-                        {headerRows.map((row, idx) => renderHeaderRow(row, idx))}
-                    </Thead>
-                    <Tbody>
-                        {sortedData.map((row, ri) => (
-                            <Tr key={ri}>
-                                {renderRowCells(header, row, ri)}
-                            </Tr>
-                        ))}
-                    </Tbody>
-                </Table>
-            </TableContainer>
-        </Box>
+                <Thead>
+                    {headerRows.map((row, idx) => renderHeaderRow(row, idx))}
+                </Thead>
+                <Tbody>
+                    {sortedData.map((row, ri) => (
+                        <Tr key={ri}>
+                            {renderRowCells(header, row, ri)}
+                        </Tr>
+                    ))}
+                </Tbody>
+            </Table>
+        </TableContainer>
     );
 }
+
+
+const TaskResultModal = NiceModal.create(({ header, data }: iTableResult) => {
+    const modal = useModal();
+    return (
+        <Modal blockScrollOnMount={false} size="full" closeOnOverlayClick={false} isOpen={modal.visible} onClose={modal.hide}>
+            <ModalOverlay />
+            <ModalContent>
+                <ModalHeader>表格结果</ModalHeader>
+                <ModalCloseButton />
+                <ModalBody>
+                    <TableResult header={header} data={data} />
+                </ModalBody>
+
+            </ModalContent>
+        </Modal>
+    )
+})
+
+export default TaskResultModal;

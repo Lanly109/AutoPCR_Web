@@ -45,15 +45,17 @@ function SingleResultTable({ resultData }: SingleResultProps) {
                             <Td>状态</Td>
                             <Td>{resultData?.status}</Td>
                         </Tr>
+                        {haveTable && resultData?.table && <Tr>
+                            <Td>表格</Td>
+                            <Td>
+                                <TableResultWrapper {...resultData.table} />
+                            </Td>
+                        </Tr>
+                        }
                         <Tr>
                             <Td>结果</Td>
                             <Td style={{ whiteSpace: 'pre-wrap' }}>
-                                <Stack>
-                                    <Box>
-                                        {resultData?.log}
-                                    </Box>
-                                    {haveTable && resultData?.table && <TableResultWrapper {...resultData.table} />}
-                                </Stack>
+                                {resultData?.log}
                             </Td>
                         </Tr>
                     </Tbody>
