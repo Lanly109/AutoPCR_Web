@@ -1,6 +1,6 @@
 import { Fetch } from '@api/APIUtils';
 import { ModuleResult as ModuleResultInterface } from '@/interfaces/ModuleResult';
-import { Table, Thead, Tbody, Tr, Th, TableContainer, useColorModeValue, Td, useToast, Stack, Box } from '@chakra-ui/react';
+import { Table, Thead, Tbody, Tr, Th, TableContainer, useColorModeValue, Td, useToast } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { TableResultWrapper } from './TableResultWrapper';

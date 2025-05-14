@@ -17,6 +17,7 @@ import {
     Box,
     Text,
     VStack,
+    Spacer,
 } from '@chakra-ui/react';
 import { AxiosError } from 'axios';
 import { useState, useEffect } from 'react';
@@ -141,9 +142,37 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                             </Select>
                         </FormControl>
                     )}
+                    {accountInfo?.alias != 'BATCH_RUNNER' &&
+                        <Button
+                            bg={'blue.400'}
+                            color={'white'}
+                            w="full"
+                            isLoading={isOpen}
+                            type="submit"
+                            _hover={{
+                                bg: 'blue.500',
+                            }}
+                        >
+                            保存
+                        </Button>
+                    }
                     {accountInfo?.alias == 'BATCH_RUNNER' && (
                         <FormControl id="batch_account">
-                            <FormLabel>批量账号选择</FormLabel>
+                            <Flex>
+                                <FormLabel>批量账号选择</FormLabel>
+                                <Spacer />
+                                <Button
+                                    bg={'blue.400'}
+                                    color={'white'}
+                                    isLoading={isOpen}
+                                    type="submit"
+                                    _hover={{
+                                        bg: 'blue.500',
+                                    }}
+                                >
+                                    保存
+                                </Button>
+                            </Flex>
                             <Checkbox isChecked={allChecked} onChange={handleAllChecked} mb={4}>
                                 全选
                             </Checkbox>
@@ -180,18 +209,6 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                         </FormControl>
                     )}
 
-                    <Button
-                        bg={'blue.400'}
-                        color={'white'}
-                        w="full"
-                        isLoading={isOpen}
-                        type="submit"
-                        _hover={{
-                            bg: 'blue.500',
-                        }}
-                    >
-                        保存
-                    </Button>
                 </Stack>
             </form>
         </Stack>
