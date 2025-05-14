@@ -102,7 +102,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
                         <Box flex={1}>
                             <Text mb={2}>未选择角色 ({availableUnits.length})</Text>
                             <Input placeholder="搜索" mb={2} value={searchAllText} onChange={(e) => setSearchAllText(e.target.value)} />
-                            <Box maxH="600px" overflowY="auto" p={2} borderRadius="md">
+                            <Box maxH="55vh" overflowY="auto" p={2} borderRadius="md">
                                 {filteredAvailable.map((u, id) => (
                                     <Box key={id} p={1} cursor="pointer" _hover={{ bg: hoverBg }} onClick={() => handleAdd(u.value)}>
                                         {u.nickname ? u.nickname : u.display}
@@ -114,7 +114,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
                         <Box flex={1}>
                             <Text mb={2}>已选择 ({selectedUnits.length})</Text>
                             <Input placeholder="搜索" mb={2} value={searchSelectedText} onChange={(e) => setSearchSelectedText(e.target.value)} />
-                            <Box maxH="600px" overflowY="auto" p={2} borderRadius="md">
+                            <Box maxH="55vh" overflowY="auto" p={2} borderRadius="md">
                                 <Flex mb={2} alignItems="center" justifyContent="space-between">
                                     <Text fontSize="xs" color="gray.500">
                                         提示：拖拽角色可调整顺序
