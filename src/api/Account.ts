@@ -85,7 +85,7 @@ export async function delAccount(alias: string) {
   return response.data;
 }
 
-export async function putAccount(alias: string, account: string, password: string, channel: string, batch_accounts: string[] = []) {
+export async function putAccount(alias: string, account: string, password: string, channel: string, batch_accounts: (string | number)[]) {
   const response = await API.put<DefaultResponse>(`/account/${alias}`, {
     username: account,
     password: password,

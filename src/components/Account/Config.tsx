@@ -1,8 +1,10 @@
 import { ConfigInfo, ConfigValue } from '@/interfaces/Module';
-import { Switch, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Input, InputGroup, InputLeftAddon, InputRightAddon, Select, useToast, CheckboxGroup, Checkbox, Stack, Box, useColorModeValue, Textarea, Text } from '@chakra-ui/react'
+import { Switch, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Input, InputGroup, InputLeftAddon, InputRightAddon, Select, useToast, CheckboxGroup, Checkbox, Stack, Box, useColorModeValue, Textarea, Text, Button } from '@chakra-ui/react'
 import { putAccountConfig } from '@/api/Account';
-import { ChangeEventHandler, FocusEventHandler } from 'react';
+import { ChangeEventHandler, FocusEventHandler, useState } from 'react';
 import { AxiosError } from 'axios';
+import NiceModal from '@ebay/nice-modal-react';
+import multiSelectModal from './MultiSelectModal';
 
 interface ConfigProps {
     alias: string,
@@ -10,6 +12,7 @@ interface ConfigProps {
     info: ConfigInfo
 }
 
+// 在现有的Config组件中添加表格类型的处理
 export default function Config({ alias, value, info }: ConfigProps) {
     switch (info?.config_type) {
         case 'bool':
@@ -24,6 +27,8 @@ export default function Config({ alias, value, info }: ConfigProps) {
             return <ConfigTime alias={alias} value={value} info={info} />
         case 'text':
             return <ConfigText alias={alias} value={value} info={info} />
+        case 'multi_search':
+            return <ConfigMultiSearch alias={alias} value={value} info={info} />
     }
 }
 
@@ -66,7 +71,7 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
                 {info.desc}
             </InputLeftAddon>
 
-            <NumberInput onChange={onChange} id={info.key} defaultValue={value as number} min={Math.min(...info.candidates as number[])} max={Math.max(...info.candidates as number[])}>
+            <NumberInput onChange={onChange} id={info.key} defaultValue={value as number} min={Math.min(...info.candidates.map(c => c.value) as number[])} max={Math.max(...info.candidates.map(c => c.value) as number[])}>
                 <NumberInputField />
                 <NumberInputStepper>
                     <NumberIncrementStepper />
@@ -100,7 +105,7 @@ function ConfigSingle({ alias, value, info }: ConfigProps) {
             <Select onChange={onChange} id={info.key} defaultValue={value as string | number} >
                 {
                     info.candidates.map((element) => {
-                        return <option key={element as string | number} value={element as string | number} >{element}</option>
+                        return <option key={element.value as string | number} value={element.value as string | number} >{element.display}</option>
                     })
                 }
             </Select>
@@ -133,7 +138,7 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
                     <Stack spacing={[1, 5]} direction={['column', 'row']}>
                         {
                             info.candidates.map((element) => {
-                                return <Checkbox key={element as string | number} value={String(element) as string | number} >{element}</Checkbox>
+                                return <Checkbox key={element.value as string | number} value={String(element.value) as string | number} >{element.display}</Checkbox>
                             })
                         }
                     </Stack>
@@ -174,14 +179,53 @@ function ConfigText({ alias, value, info }: ConfigProps) {
             toast({ status: 'error', title: '保存失败', description: err.response?.data as string || "网络错误" });
         });
     }
-
+    const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        e.target.style.height = 'auto'; // 重置高度
+        e.target.style.height = `${e.target.scrollHeight}px`; // 根据内容设置高度
+    };    
     return (
         <>
-            <Text>
-                {info.desc}
-            </Text>
-
-            <Textarea onBlur={onBlur} id={info.key} defaultValue={value as string} />
+            <Text>{info.desc}</Text>
+            <Textarea onBlur={onBlur} id={info.key} defaultValue={value as string} onInput={handleInput} />
         </>
-    )
+    );
+}
+
+function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
+    const toast = useToast();
+    const [localValue, setLocalValue] = useState<ConfigValue>(value);
+
+    const displayValue = (localValue as number[]).map((id) => {
+        const unit = info.candidates.find((unit) => unit.value === id);
+        return unit ? (unit.nickname ? unit.nickname : unit.display) : String(id);
+    });
+
+    const handleClick = async (): Promise<void> => {
+        
+        try {
+            const ret: ConfigValue = await NiceModal.show<ConfigValue>('multiSelectModal', {
+                candidates: info.candidates,
+                value: localValue,
+            });
+            const res: string = await putAccountConfig(alias, info.key, ret);
+            setLocalValue(ret);
+            toast({ status: "success", title: "保存成功", description: res });
+            await NiceModal.hide(multiSelectModal);
+        } catch (err) {
+            const axiosErr = err as AxiosError;
+            toast({ status: "error", title: "保存失败", description: axiosErr.response?.data as string || "网络错误" });
+        }
+    };
+
+    return (
+        <InputGroup>
+            <InputLeftAddon>
+                {info.desc}
+            </InputLeftAddon>
+            <Input value={displayValue} isReadOnly onClick={handleClick} cursor="pointer" />
+            <InputRightAddon>
+                <Button size="sm" onClick={handleClick}>选择</Button>
+            </InputRightAddon>
+        </InputGroup>
+    );
 }

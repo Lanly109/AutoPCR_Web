@@ -72,8 +72,27 @@ export interface ConfigInfo {
 	/**
 	* 配置候选值
 	*/
-	candidates: ConfigValue[];
+	candidates: Candidate[];
+}
+
+export interface Candidate {
+	/**
+	* 候选值
+	*/
+	value: ConfigValue;
+	/**
+	* 候选值描述
+	*/
+	display: string;
+	/**
+	* 信息
+	*/
+    tags: string[]
+    /**
+	* 昵称
+	*/
+    nickname?: string;
 }
 
 export type ConfigValue = number | string | boolean | (string | number)[];
-export type ConfigType = "bool" | "int" | "single" | "multi" | "time" | "text";
+export type ConfigType = "bool" | "int" | "single" | "multi" | "time" | "text" | "multi_search";

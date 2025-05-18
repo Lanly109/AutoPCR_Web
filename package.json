@@ -1,7 +1,7 @@
 {
     "name": "autopcr_web",
     "private": true,
-    "version": "1.3.0",
+    "version": "1.4.0",
     "type": "module",
     "scripts": {
         "dev": "vite",
@@ -31,7 +31,8 @@
         "react-hook-form": "^7.53.0",
         "react-icons": "^5.0.1",
         "rollup-plugin-obfuscator": "^1.1.0",
-        "rollup-plugin-visualizer": "^5.12.0"
+        "rollup-plugin-visualizer": "^5.12.0",
+        "xlsx": "^0.18.5"
     },
     "devDependencies": {
         "@types/react": "^18.2.64",

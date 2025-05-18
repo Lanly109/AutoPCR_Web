@@ -5,13 +5,16 @@ import {
     Icon,
     useColorModeValue,
     FlexProps,
-    Button,
-    Stack,
+    // Button,
+    // Stack,
     useColorMode,
     Image,
     createStandaloneToast,
     useTheme,
     Text,
+    useBreakpointValue,
+    IconButton,
+    Tooltip,
 } from '@chakra-ui/react'
 import {
     FiHome,
@@ -38,35 +41,39 @@ interface NavItemProps extends FlexProps {
 }
 
 const NavItem = ({ icon, children, href, ...rest }: NavItemProps) => {
+    const isSmallScreen = useBreakpointValue({ base: true, md: false });
+
     return (
         <Box
             style={{ textDecoration: 'none' }}
             _focus={{ boxShadow: 'none' }}>
             <Link to={href}>
-                <Flex
-                    align="center"
-                    p="4"
-                    mx="4"
-                    borderRadius="lg"
-                    role="group"
-                    cursor="pointer"
-                    _hover={{
-                        bg: 'cyan.400',
-                        color: 'white',
-                    }}
-                    {...rest}>
-                    {icon && (
-                        <Icon
-                            mr="4"
-                            fontSize="16"
-                            _groupHover={{
-                                color: 'white',
-                            }}
-                            as={icon}
-                        />
-                    )}
-                    {children}
-                </Flex>
+                <Tooltip label={isSmallScreen ? children : undefined}>
+                    <Flex
+                        align="center"
+                        p={isSmallScreen ? "2" : "4"}
+                        mx={isSmallScreen ? "1" : "4"}
+                        borderRadius="lg"
+                        role="group"
+                        cursor="pointer"
+                        _hover={{
+                            bg: 'cyan.400',
+                            color: 'white',
+                        }}
+                        {...rest}>
+                        {icon && (
+                            <Icon
+                                mr={isSmallScreen ? "0" : "4"}
+                                fontSize="16"
+                                _groupHover={{
+                                    color: 'white',
+                                }}
+                                as={icon}
+                            />
+                        )}
+                        {!isSmallScreen && children}
+                    </Flex>
+                </Tooltip>
             </Link>
         </Box>
     )
@@ -77,6 +84,7 @@ export default function Nav() {
     const theme = useTheme();
     const { toast } = createStandaloneToast({ theme });
     const role = useUserRole();
+    const isSmallScreen = useBreakpointValue({ base: true, md: false });
 
     const navigate = useNavigate();
 
@@ -101,23 +109,23 @@ export default function Nav() {
 
     const handleLogout = () => {
         postLogout().then(async (res) => {
-            toast({ title: "登出成功", description: res, status: "success", position: "top-right" });
+            toast({ title: "登出成功", description: res, status: "success" });
             await navigate({ to: LoginRoute.to });
         }).catch((err: AxiosError) => {
-            toast({ title: "登出失败", description: err.response?.data as string, status: "error", position: "top-right" });
+            toast({ title: "登出失败", description: err.response?.data as string, status: "error" });
         })
     }
 
     return (
         <Flex flexDirection={'column'} height={'100vh'}>
-            <Box top={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={4}>
+            <Box top={0} left={0} right={0} zIndex={10} bg={useColorModeValue('gray.200', 'gray.900')} px={2}>
                 <Flex h={16} alignItems={'center'} justifyContent={'space-between'}>
                     <Box>
                         <Link to={InfoRoute.to}>
-                            <Image src={autopcr} alt="autopcr" style={{ width: "50px", height: "50px" }} />
+                            <Image src={autopcr} alt="autopcr" style={{ width: "40px", height: "40px" }} />
                         </Link>
                     </Box>
-                    <HStack as={'nav'} spacing={4}>
+                    <HStack as={'nav'} spacing={isSmallScreen ? 1 : 4}>
                         <NavItem key="dashboard" href={InfoRoute.to} icon={FiHome} >
                             一览
                         </NavItem>
@@ -129,12 +137,12 @@ export default function Nav() {
                         </NavItem>
                     </HStack>
                     <Flex alignItems={'center'}>
-                        <Stack direction={'row'} spacing={7}>
-                            <Button onClick={toggleColorMode}>
-                                {colorMode === 'light' ? <SunIcon /> : <MoonIcon />}
-                            </Button>
-
-                        </Stack>
+                        <IconButton
+                            aria-label="Toggle color mode"
+                            icon={colorMode === 'light' ? <SunIcon /> : <MoonIcon />}
+                            onClick={toggleColorMode}
+                            size={isSmallScreen ? "sm" : "md"}
+                        />
                     </Flex>
                 </Flex>
             </Box>

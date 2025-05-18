@@ -100,6 +100,23 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
+	build: {
+		target: 'es2020',         
+		sourcemap: false,        
+		brotliSize: true,
+		rollupOptions: {
+		  output: {
+			manualChunks(id) {
+			  if (id.includes('node_modules')) {
+				if (id.includes('@chakra-ui')) return 'chakra'
+				if (id.includes('framer-motion')) return 'motion'
+				if (id.includes('xlsx')) return 'xlsx'
+				return 'vendor'
+			  }
+			}
+		  }
+		}
+	},
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
