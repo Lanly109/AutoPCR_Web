@@ -156,7 +156,7 @@ export function TableResult({ header, data }: iTableResult) {
         return defs.flatMap((def, ci) => {
             if (typeof def === 'string') {
                 return <Td border="1px solid gray" key={`ceil-${def}-${prefix}-${ri}-${ci}`}
-                    whiteSpace="pre-wrap"
+                    whiteSpace="pre"
                     bg={index == -1 ? ci % 2 == 0 ? color1 : color2 : index % 2 == 0 ? color1 : color2}
                 >{(row as Record<string, DataItem>)[def] as string ?? ''}
                 </Td>
@@ -168,7 +168,7 @@ export function TableResult({ header, data }: iTableResult) {
                     groupVal !== undefined &&
                     typeof groupVal !== 'object'
                 ) {
-                    return <Td whiteSpace="pre-wrap" border="1px solid gray" key={`ceil-${key}-${prefix}-${ri}-${ci}`}>{groupVal}</Td>
+                    return <Td whiteSpace="pre" border="1px solid gray" key={`ceil-${key}-${prefix}-${ri}-${ci}`}>{groupVal}</Td>
                 }
                 return renderRowCells(children, groupVal || {}, ri, `${prefix}${key}.`, index == -1 ? ci : index)
             }
