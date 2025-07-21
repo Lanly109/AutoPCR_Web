@@ -103,6 +103,17 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
                             <Text mb={2}>未选择角色 ({availableUnits.length})</Text>
                             <Input placeholder="搜索" mb={2} value={searchAllText} onChange={(e) => setSearchAllText(e.target.value)} />
                             <Box maxH="55vh" overflowY="auto" p={2} borderRadius="md">
+                                <Button
+                                    size="sm"
+                                    colorScheme="green"
+                                    onClick={() => {
+                                        const allValues = filteredAvailable.map(u => u.value);
+                                        setSelectedUnits([...new Set([...selectedUnits, ...allValues])]);
+                                        setAvailableUnits(availableUnits.filter(u => !allValues.includes(u.value)));
+                                    }}
+                                >
+                                    全选
+                                </Button>
                                 {filteredAvailable.map((u, id) => (
                                     <Box key={id} p={1} cursor="pointer" _hover={{ bg: hoverBg }} onClick={() => handleAdd(u.value)}>
                                         {u.nickname ? u.nickname : u.display}
