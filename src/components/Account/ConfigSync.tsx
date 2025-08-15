@@ -65,7 +65,7 @@ const ConfigSync = ({ alias, areas, onImportSuccess }: ConfigIOProps) => {
                 if (typeof value === "string") return value;
                 break
             case 'time':
-                if (typeof value === "string" && value.match(/\d\d:\d\d/) !== null) return value;
+                if (typeof value === "string" && value.match(/^\d{2}:\d{2}$/) !== null) return value;
                 break
             case 'multi':
             case 'multi_search': {
@@ -125,8 +125,11 @@ const ConfigSync = ({ alias, areas, onImportSuccess }: ConfigIOProps) => {
         } catch (err) {
             if (err instanceof AxiosError) {
                 toast({ status: 'error', title: '配置导入失败', description: err.response?.data as string || "网络错误" });
+            } else if (err instanceof Error) {
+                toast({ status: 'error', title: '配置导入失败', description: err.message });
             }
-            throw err;
+        } finally {
+            onClose();
         }
     }
 
@@ -138,13 +141,7 @@ const ConfigSync = ({ alias, areas, onImportSuccess }: ConfigIOProps) => {
         }
         onOpen()
         void file.text()
-            .then(realImport)
-            .catch((err: Error) => {
-                toast({ status: 'error', title: '配置导入失败', description: err.message });
-            })
-            .finally(() => {
-                onClose();
-            });
+            .then(realImport);
     }
 
     const importTextDialogDisclosure = useDisclosure();
@@ -152,9 +149,7 @@ const ConfigSync = ({ alias, areas, onImportSuccess }: ConfigIOProps) => {
     const textImportRef = useRef<FocusableElement>(null);
     const onTextImport = () => {
         importTextDialogDisclosure.onClose();
-        void realImport(textImportVal).finally(() => {
-            onClose();
-        });
+        void realImport(textImportVal);
     }
     const onTextImportCancel = () => {
         onClose()
@@ -196,7 +191,7 @@ const ConfigSync = ({ alias, areas, onImportSuccess }: ConfigIOProps) => {
                                 从文本导入
                             </AlertDialogHeader>
                             <AlertDialogBody>
-                                <Textarea placeholder={"请在输入 .autopcrcfg 文件内容。"}
+                                <Textarea placeholder={"请输入 .autopcrcfg 文件内容。"}
                                           value={textImportVal}
                                           onChange={(e) => setTextImportVal(e.target.value)} />
                             </AlertDialogBody>
