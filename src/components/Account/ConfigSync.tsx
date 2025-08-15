@@ -125,8 +125,8 @@ const ConfigSync = ({ alias, areas, onImportSuccess }: ConfigIOProps) => {
         } catch (err) {
             if (err instanceof AxiosError) {
                 toast({ status: 'error', title: '配置导入失败', description: err.response?.data as string || "网络错误" });
-            } else if (err instanceof Error) {
-                toast({ status: 'error', title: '配置导入失败', description: err.message });
+            } else {
+                toast({ status: 'error', title: '配置导入失败', description: (err as Error).message });
             }
         } finally {
             onClose();
