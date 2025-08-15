@@ -5,6 +5,7 @@ import { AccountResponse } from '@interfaces/Account'
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@chakra-ui/react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react';
+import ConfigSync from "@components/Account/ConfigSync.tsx";
 export const Route = createFileRoute('/daily/_sidebar/account/$account')({
     component: AccountComponent,
     loader: ({ params: { account } }) => getAccount(account),
@@ -49,6 +50,7 @@ function AccountComponent() {
             <TabPanels flex={1} overflow={'auto'}>
                 <TabPanel id="account">
                     <Info accountInfo={accountInfo} onSaveSuccess={refreshAccountData} />
+                    <ConfigSync alias={accountInfo?.alias} areas={accountInfo?.area} onImportSuccess={refreshAccountData} />
                 </TabPanel>
                 {accountInfo?.area.map((area) => (
                     <TabPanel id={area?.key} key={area?.key}>
