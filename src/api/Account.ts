@@ -42,10 +42,10 @@ export async function putUserInfo(userInfo: UserInfoResponse) {
 
 export async function postAccountImport(file: File) {
   const formData = new FormData();
-  formData.append('file', file); 
+  formData.append('file', file);
   const response = await API.post<DefaultResponse>('/account/import', formData, {
     headers: {
-      'Content-Type': 'multipart/form-data', 
+      'Content-Type': 'multipart/form-data',
     },
   });
   return response.data;
@@ -101,9 +101,11 @@ export async function getAccountConfig(alias: string, area: string) {
 }
 
 export async function putAccountConfig(alias: string, key: string, value: ConfigValue) {
-  const response = await API.put<DefaultResponse>(`/account/${alias}/config`, {
-    [key]: value
-  });
+  return putAccountConfigs(alias, {[key]: value})
+}
+
+export async function putAccountConfigs(alias: string, configs: Record<string, ConfigValue>) {
+  const response = await API.put<DefaultResponse>(`/account/${alias}/config`, configs);
   return response.data;
 }
 
@@ -130,7 +132,7 @@ export async function getAccountDailyResultList(alias: string) {
 
 export async function getAccountDailyResult(alias: string, id: number) {
   const response = await API.get<Blob>(`/account/${alias}/daily_result/${id}`,
-    { 
+    {
 		responseType: "blob",
 		timeout: 1 * 60 * 1000
   });
@@ -145,7 +147,7 @@ export async function getAccountAreaSingleResultList(alias: string, module: stri
 
 export async function getAccountAreaSingleResult(alias: string, module: string, text: boolean) {
   const response = await API.get<Blob | ModuleResult>(`/account/${alias}/single_result/${module}?text=${text}`,
-    { 
+    {
 		responseType: "blob",
 		timeout: 1 * 60 * 1000
   });
