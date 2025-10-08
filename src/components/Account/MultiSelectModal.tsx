@@ -1,6 +1,6 @@
 import { Candidate, ConfigValue } from '@interfaces/Module';
 import { Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody, ModalFooter, Button, Input, Flex, Box, Text, IconButton, useColorModeValue } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import NiceModal, { useModal } from '@ebay/nice-modal-react';
 import { CloseIcon } from '@chakra-ui/icons';
 
@@ -20,6 +20,17 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
     const [searchAllText, setSearchAllText] = useState('');
     const [searchSelectedText, setSearchSelectedText] = useState('');
     const [draggedUnit, setDraggedUnit] = useState<ConfigValue | null>(null);
+
+    const lastVisibleRef = useRef(false);
+
+    if (modal.visible && !lastVisibleRef.current) {
+        setSelectedUnits(value);
+        setAvailableUnits(candidates.filter(u => !value.includes(u.value)));
+        setSearchAllText('');
+        setSearchSelectedText('');
+    }
+
+    lastVisibleRef.current = modal.visible;
 
     const handleAdd = (id: ConfigValue) => {
         if (!selectedUnits.includes(id)) {
@@ -79,7 +90,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
         setAvailableUnits(candidates);
     };
 
-    const filteredAvailable = availableUnits.filter((u) => String(u.value).includes(searchAllText) || u.tags?.some((tag) => tag.toLowerCase().includes(searchAllText.toLowerCase())));
+    const filteredAvailable = availableUnits.filter((u) => String(u.value).includes(searchAllText) || String(u.display).includes(searchAllText) || u.tags?.some((tag) => tag.toLowerCase().includes(searchAllText.toLowerCase())));
 
     const selectedObjects = selectedUnits.map((id) => {
         const u = candidates.find((u) => u.value === id);
@@ -100,7 +111,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
                 <ModalBody>
                     <Flex gap={4}>
                         <Box flex={1}>
-                            <Text mb={2}>未选择角色 ({availableUnits.length})</Text>
+                            <Text mb={2}>未选择 ({availableUnits.length})</Text>
                             <Input placeholder="搜索" mb={2} value={searchAllText} onChange={(e) => setSearchAllText(e.target.value)} />
                             <Box maxH="55vh" overflowY="auto" p={2} borderRadius="md">
                                 <Button
@@ -128,7 +139,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
                             <Box maxH="55vh" overflowY="auto" p={2} borderRadius="md">
                                 <Flex mb={2} alignItems="center" justifyContent="space-between">
                                     <Text fontSize="xs" color="gray.500">
-                                        提示：拖拽角色可调整顺序
+                                        提示：拖拽可调整顺序
                                     </Text>
                                     <Button onClick={handleClearAll} size={'sm'} colorScheme="red">
                                         清空
