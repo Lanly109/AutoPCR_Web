@@ -1,3 +1,4 @@
+import './polyfills/structuredClone'
 import App from './App.tsx'
 import NiceModal from '@ebay/nice-modal-react';
 import { Provider } from './components/ui/provider'
