@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react';
 import { AreaInfo } from '@/interfaces/Account';
 import { Checkbox } from '../../components/ui/checkbox';
 import { toaster } from '../../components/ui/toaster';
+import DailyModuleSelectModal from './DailyModuleSelectModal';
 
 interface ConfigSyncModalProps {
     sourceAccount: string;
@@ -36,6 +37,9 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
     // Selection state
     const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
     const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+    
+    // Daily modules
+    const [selectedDailyModules, setSelectedDailyModules] = useState<string[]>([]);
     
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -78,11 +82,36 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
         }
     };
 
-    const toggleArea = (key: string) => {
-        if (selectedAreas.includes(key)) {
-            setSelectedAreas(prev => prev.filter(k => k !== key));
+    const toggleArea = async (key: string) => {
+        if (key === "daily") {
+            if (!selectedAreas.includes(key)) {
+                // 获取日常模块
+                try {
+                    const moduleRes = await getAccountConfig(sourceAccount, "daily");
+                    const modules: Record<string, string> = {};
+                    for (const [k, v] of Object.entries(moduleRes.info)) {
+                        modules[k] = v.name;
+                    }
+                    // 弹出选择模态框
+                    const selected = await NiceModal.show(DailyModuleSelectModal, { modules, initialSelected: selectedDailyModules });
+                    if (selected === undefined) {
+                        return;
+                    }
+                    setSelectedDailyModules(selected as string[]);
+                    setSelectedAreas(prev => [...prev, key]);
+                } catch (err) {
+                    toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
+                }
+            } else {
+                setSelectedAreas(prev => prev.filter(k => k !== key));
+                setSelectedDailyModules([]);
+            }
         } else {
-            setSelectedAreas(prev => [...prev, key]);
+            if (selectedAreas.includes(key)) {
+                setSelectedAreas(prev => prev.filter(k => k !== key));
+            } else {
+                setSelectedAreas(prev => [...prev, key]);
+            }
         }
     };
 
@@ -94,17 +123,43 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
         }
     };
 
-    const toggleAllAreas = () => {
+    const toggleAllAreas = async () => {
         if (selectedAreas.length === areas.length) {
             setSelectedAreas([]);
+            setSelectedDailyModules([]);
         } else {
-            setSelectedAreas(areas.map(a => a.key));
+            const allKeys = areas.map(a => a.key);
+            if (allKeys.includes("daily")) {
+                // 获取日常模块并弹出选择
+                try {
+                    const moduleRes = await getAccountConfig(sourceAccount, "daily");
+                    const modules: Record<string, string> = {};
+                    for (const [k, v] of Object.entries(moduleRes.info)) {
+                        modules[k] = v.name;
+                    }
+                    const selected = await NiceModal.show(DailyModuleSelectModal, { modules, initialSelected: selectedDailyModules });
+                    if (selected === undefined) {
+                        setSelectedAreas(allKeys.filter(key => key !== "daily"));
+                        return;
+                    }
+                    setSelectedDailyModules(selected as string[]);
+                } catch (err) {
+                    toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
+                    return;
+                }
+            }
+            setSelectedAreas(allKeys);
         }
     };
 
     const handleSync = async () => {
         if (selectedTargets.length === 0 || selectedAreas.length === 0) {
             toaster.create({ type: 'warning', title: '请选择要同步的账号和配置项' });
+            return;
+        }
+
+        if (selectedAreas.includes("daily") && selectedDailyModules.length === 0) {
+            toaster.create({ type: 'warning', title: '请至少选择一个日常模块' });
             return;
         }
 
@@ -119,7 +174,28 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
             for (const areaKey of selectedAreas) {
                 const moduleRes = await getAccountConfig(sourceAccount, areaKey);
                 if (moduleRes.config) {
-                    mergedConfig = { ...mergedConfig, ...moduleRes.config };
+                    if (areaKey === "daily" && selectedDailyModules.length > 0) {
+                        // 过滤日常配置，只同步选中的模块
+                        const filteredConfig: Record<string, any> = {};
+                        for (const moduleKey of selectedDailyModules) {
+                            // 同步模块开关项
+                            if (moduleRes.config[moduleKey] !== undefined) {
+                                filteredConfig[moduleKey] = moduleRes.config[moduleKey];
+                            }
+                            // 同步模块内的配置项
+                            const moduleInfo = moduleRes.info?.[moduleKey];
+                            if (moduleInfo?.config) {
+                                for (const configKey of Object.keys(moduleInfo.config)) {
+                                    if (moduleRes.config[configKey] !== undefined) {
+                                        filteredConfig[configKey] = moduleRes.config[configKey];
+                                    }
+                                }
+                            }
+                        }
+                        mergedConfig = { ...mergedConfig, ...filteredConfig };
+                    } else {
+                        mergedConfig = { ...mergedConfig, ...moduleRes.config };
+                    }
                 }
             }
 
