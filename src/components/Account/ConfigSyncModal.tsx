@@ -23,23 +23,23 @@ import { useEffect, useState } from 'react';
 import { AreaInfo } from '@/interfaces/Account';
 import { Checkbox } from '../../components/ui/checkbox';
 import { toaster } from '../../components/ui/toaster';
-import DailyModuleSelectModal from './DailyModuleSelectModal';
 
 interface ConfigSyncModalProps {
     sourceAccount: string;
+    presetDailyModules?: string[];
 }
 
-export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
+export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSyncModalProps) => {
     const modal = useModal();
     const [allAccounts, setAllAccounts] = useState<string[]>([]);
     const [areas, setAreas] = useState<AreaInfo[]>([]);
     
     // Selection state
     const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
-    const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+    const [selectedAreas, setSelectedAreas] = useState<string[]>(presetDailyModules?.length ? ['daily'] : []);
     
     // Daily modules
-    const [selectedDailyModules, setSelectedDailyModules] = useState<string[]>([]);
+    const [selectedDailyModules, setSelectedDailyModules] = useState<string[]>(presetDailyModules || []);
     
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -61,7 +61,8 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
                     
                     // Default reset selection
                     setSelectedTargets([]);
-                    setSelectedAreas([]);
+                    setSelectedAreas(presetDailyModules?.length ? ['daily'] : []);
+                    setSelectedDailyModules(presetDailyModules || []);
 
                 } catch (err) {
                     toaster.create({ type: 'error', title: '获取数据失败', description: String(err) });
@@ -71,7 +72,7 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
             };
             fetchData();
         }
-    }, [modal.visible, sourceAccount]);
+    }, [modal.visible, sourceAccount, presetDailyModules]);
 
     // Handle Checkbox Changes
     const toggleTarget = (account: string) => {
@@ -85,19 +86,11 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
     const toggleArea = async (key: string) => {
         if (key === "daily") {
             if (!selectedAreas.includes(key)) {
-                // 获取日常模块
+                // 获取日常模块并自动选择所有
                 try {
                     const moduleRes = await getAccountConfig(sourceAccount, "daily");
-                    const modules: Record<string, string> = {};
-                    for (const [k, v] of Object.entries(moduleRes.info)) {
-                        modules[k] = v.name;
-                    }
-                    // 弹出选择模态框
-                    const selected = await NiceModal.show(DailyModuleSelectModal, { modules, initialSelected: selectedDailyModules });
-                    if (selected === undefined) {
-                        return;
-                    }
-                    setSelectedDailyModules(selected as string[]);
+                    const allModuleKeys = Object.keys(moduleRes.info || {});
+                    setSelectedDailyModules(allModuleKeys);
                     setSelectedAreas(prev => [...prev, key]);
                 } catch (err) {
                     toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
@@ -130,19 +123,11 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
         } else {
             const allKeys = areas.map(a => a.key);
             if (allKeys.includes("daily")) {
-                // 获取日常模块并弹出选择
+                // 获取日常模块并自动选择所有
                 try {
                     const moduleRes = await getAccountConfig(sourceAccount, "daily");
-                    const modules: Record<string, string> = {};
-                    for (const [k, v] of Object.entries(moduleRes.info)) {
-                        modules[k] = v.name;
-                    }
-                    const selected = await NiceModal.show(DailyModuleSelectModal, { modules, initialSelected: selectedDailyModules });
-                    if (selected === undefined) {
-                        setSelectedAreas(allKeys.filter(key => key !== "daily"));
-                        return;
-                    }
-                    setSelectedDailyModules(selected as string[]);
+                    const allModuleKeys = Object.keys(moduleRes.info || {});
+                    setSelectedDailyModules(allModuleKeys);
                 } catch (err) {
                     toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
                     return;
@@ -290,6 +275,11 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
                                 ))}
                                 {areas.length === 0 && <Text color="gray.500" fontSize="sm">无配置区域</Text>}
                             </Grid>
+                            {selectedAreas.includes('daily') && selectedDailyModules.length > 0 && (
+                                <Text color="fg.muted" fontSize="sm" mt={2}>
+                                    已选日常模块：{selectedDailyModules.length} 个
+                                </Text>
+                            )}
                         </Box>
                     </Stack>
                 </ModalBody>

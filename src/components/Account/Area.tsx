@@ -59,7 +59,7 @@ export default function Area({ alias, keys: key }: AreaProps) {
                     ))
                 ) : (
                     config?.order.map((module) => (
-                        <Module key={module} id={module} alias={alias} config={config?.config} info={(config.info[module])} isOpen={open} onOpen={onOpen} onClose={onClose} />
+                        <Module key={module} id={module} alias={alias} areaKey={key} config={config?.config} info={(config.info[module])} isOpen={open} onOpen={onOpen} onClose={onClose} />
                     ))
                 )}
             </Stack>
