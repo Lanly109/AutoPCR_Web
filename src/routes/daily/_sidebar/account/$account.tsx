@@ -102,7 +102,7 @@ function AccountComponent() {
                 {accountInfo?.area.map((area, index) => (
                     <Tabs.Content value={String(index + 1)} key={area?.key}>
                         {' '}
-                        <Area alias={accountInfo?.alias} keys={area?.key} />{' '}
+                        <Area alias={accountInfo?.alias} keys={area?.key} areaName={area?.name} />{' '}
                     </Tabs.Content>
                 ))}
             </Box>

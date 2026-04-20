@@ -36,7 +36,7 @@ export default function Account(alias: string) {
             </Tabs.Content>
             {
                 account?.area.map((area, index) => {
-                    return <Tabs.Content key={area.key} value={String(index + 1)}> <Area alias={alias} keys={area.key} /> </Tabs.Content>
+                    return <Tabs.Content key={area.key} value={String(index + 1)}> <Area alias={alias} keys={area.key} areaName={area.name} /> </Tabs.Content>
                 })
             }
         </Tabs.Root>
