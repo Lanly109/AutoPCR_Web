@@ -26,16 +26,20 @@ import { toaster } from '../../components/ui/toaster';
 
 interface ConfigSyncModalProps {
     sourceAccount: string;
+    presetDailyModules?: string[];
 }
 
-export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
+export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSyncModalProps) => {
     const modal = useModal();
     const [allAccounts, setAllAccounts] = useState<string[]>([]);
     const [areas, setAreas] = useState<AreaInfo[]>([]);
     
     // Selection state
     const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
-    const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+    const [selectedAreas, setSelectedAreas] = useState<string[]>(presetDailyModules?.length ? ['daily'] : []);
+    
+    // Daily modules
+    const [selectedDailyModules, setSelectedDailyModules] = useState<string[]>(presetDailyModules || []);
     
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -57,7 +61,8 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
                     
                     // Default reset selection
                     setSelectedTargets([]);
-                    setSelectedAreas([]);
+                    setSelectedAreas(presetDailyModules?.length ? ['daily'] : []);
+                    setSelectedDailyModules(presetDailyModules || []);
 
                 } catch (err) {
                     toaster.create({ type: 'error', title: '获取数据失败', description: String(err) });
@@ -67,7 +72,7 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
             };
             fetchData();
         }
-    }, [modal.visible, sourceAccount]);
+    }, [modal.visible, sourceAccount, presetDailyModules]);
 
     // Handle Checkbox Changes
     const toggleTarget = (account: string) => {
@@ -78,11 +83,28 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
         }
     };
 
-    const toggleArea = (key: string) => {
-        if (selectedAreas.includes(key)) {
-            setSelectedAreas(prev => prev.filter(k => k !== key));
+    const toggleArea = async (key: string) => {
+        if (key === "daily") {
+            if (!selectedAreas.includes(key)) {
+                // 获取日常模块并自动选择所有
+                try {
+                    const moduleRes = await getAccountConfig(sourceAccount, "daily");
+                    const allModuleKeys = Object.keys(moduleRes.info || {});
+                    setSelectedDailyModules(allModuleKeys);
+                    setSelectedAreas(prev => [...prev, key]);
+                } catch (err) {
+                    toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
+                }
+            } else {
+                setSelectedAreas(prev => prev.filter(k => k !== key));
+                setSelectedDailyModules([]);
+            }
         } else {
-            setSelectedAreas(prev => [...prev, key]);
+            if (selectedAreas.includes(key)) {
+                setSelectedAreas(prev => prev.filter(k => k !== key));
+            } else {
+                setSelectedAreas(prev => [...prev, key]);
+            }
         }
     };
 
@@ -94,17 +116,35 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
         }
     };
 
-    const toggleAllAreas = () => {
+    const toggleAllAreas = async () => {
         if (selectedAreas.length === areas.length) {
             setSelectedAreas([]);
+            setSelectedDailyModules([]);
         } else {
-            setSelectedAreas(areas.map(a => a.key));
+            const allKeys = areas.map(a => a.key);
+            if (allKeys.includes("daily")) {
+                // 获取日常模块并自动选择所有
+                try {
+                    const moduleRes = await getAccountConfig(sourceAccount, "daily");
+                    const allModuleKeys = Object.keys(moduleRes.info || {});
+                    setSelectedDailyModules(allModuleKeys);
+                } catch (err) {
+                    toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
+                    return;
+                }
+            }
+            setSelectedAreas(allKeys);
         }
     };
 
     const handleSync = async () => {
         if (selectedTargets.length === 0 || selectedAreas.length === 0) {
             toaster.create({ type: 'warning', title: '请选择要同步的账号和配置项' });
+            return;
+        }
+
+        if (selectedAreas.includes("daily") && selectedDailyModules.length === 0) {
+            toaster.create({ type: 'warning', title: '请至少选择一个日常模块' });
             return;
         }
 
@@ -119,7 +159,28 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
             for (const areaKey of selectedAreas) {
                 const moduleRes = await getAccountConfig(sourceAccount, areaKey);
                 if (moduleRes.config) {
-                    mergedConfig = { ...mergedConfig, ...moduleRes.config };
+                    if (areaKey === "daily" && selectedDailyModules.length > 0) {
+                        // 过滤日常配置，只同步选中的模块
+                        const filteredConfig: Record<string, any> = {};
+                        for (const moduleKey of selectedDailyModules) {
+                            // 同步模块开关项
+                            if (moduleRes.config[moduleKey] !== undefined) {
+                                filteredConfig[moduleKey] = moduleRes.config[moduleKey];
+                            }
+                            // 同步模块内的配置项
+                            const moduleInfo = moduleRes.info?.[moduleKey];
+                            if (moduleInfo?.config) {
+                                for (const configKey of Object.keys(moduleInfo.config)) {
+                                    if (moduleRes.config[configKey] !== undefined) {
+                                        filteredConfig[configKey] = moduleRes.config[configKey];
+                                    }
+                                }
+                            }
+                        }
+                        mergedConfig = { ...mergedConfig, ...filteredConfig };
+                    } else {
+                        mergedConfig = { ...mergedConfig, ...moduleRes.config };
+                    }
                 }
             }
 
@@ -214,6 +275,11 @@ export default NiceModal.create(({ sourceAccount }: ConfigSyncModalProps) => {
                                 ))}
                                 {areas.length === 0 && <Text color="gray.500" fontSize="sm">无配置区域</Text>}
                             </Grid>
+                            {selectedAreas.includes('daily') && selectedDailyModules.length > 0 && (
+                                <Text color="fg.muted" fontSize="sm" mt={2}>
+                                    已选日常模块：{selectedDailyModules.length} 个
+                                </Text>
+                            )}
                         </Box>
                     </Stack>
                 </ModalBody>

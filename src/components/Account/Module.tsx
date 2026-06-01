@@ -2,18 +2,22 @@ import * as React from 'react';
 
 import { Box, Button, Card, Flex, HStack, Heading, Separator, Stack, Tag, useDisclosure } from '@chakra-ui/react'
 import { ConfigValue, ModuleInfo } from '@interfaces/Module';
-import { FiChevronDown } from 'react-icons/fi';
-import { getAccountAreaSingleResultList, postAccountAreaSingle, putAccountConfig } from '@api/Account';
+import { FiChevronDown, FiCopy } from 'react-icons/fi';
+import { getAccountAreaSingleResultList, postAccountAreaSingle, putAccountConfig, getAccountConfig, putAccountConfigs } from '@api/Account';
 
+import Alert from '../alert';
 import { AxiosError } from 'axios';
 import { Checkbox } from '../../components/ui/checkbox';
 import Config from './Config';
 import NiceModal from '@ebay/nice-modal-react';
 import ResultInfoModal from './ResultInfoModal';
+import ModuleSyncModal from './ModuleSyncModal';
 import { toaster } from '../../components/ui/toaster';
 
 interface ModuleProps extends React.ComponentProps<typeof Card.Root> {
     alias: string,
+    areaKey: string,
+    areaName: string,
     config: Record<string, ConfigValue>,
     info: ModuleInfo
     isOpen: boolean,
@@ -21,8 +25,10 @@ interface ModuleProps extends React.ComponentProps<typeof Card.Root> {
     onClose: () => void
 }
 
-export default function Module({ alias, config, info, isOpen, onOpen, onClose, ...rest }: ModuleProps) {
+export default function Module({ alias, areaKey, areaName, config, info, isOpen, onOpen, onClose, ...rest }: ModuleProps) {
     const { open: isExpanded, onToggle: onToggleExpand } = useDisclosure({ defaultOpen: false });
+    const dangerConfirm = useDisclosure();
+    const isDangerous = areaName === '危险';
 
     const onCheckedChange = (details: { checked: boolean | "indeterminate" }) => {
         putAccountConfig(alias, info?.key, !!details.checked).then((response) => {
@@ -60,7 +66,74 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
 
     const handleExecuteWrapper = (e: React.MouseEvent) => {
         e.stopPropagation();
-        handleExecute();
+        if (isDangerous) {
+            dangerConfirm.onOpen();
+        } else {
+            handleExecute();
+        }
+    }
+
+    const handleSyncConfig = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (areaKey !== 'daily') {
+            return;
+        }
+        const targetAccounts = await NiceModal.show(ModuleSyncModal, { sourceAlias: alias, moduleName: info.name });
+        if (!Array.isArray(targetAccounts) || targetAccounts.length === 0) return;
+
+        const normalizedTargets = targetAccounts.filter((item): item is string => typeof item === 'string');
+        if (normalizedTargets.length === 0) return;
+
+        onOpen();
+        try {
+            const moduleRes = await getAccountConfig(alias, "daily");
+            if (!moduleRes.config) {
+                toaster.create({ type: 'error', title: '获取配置失败' });
+                return;
+            }
+
+            const filteredConfig: Record<string, ConfigValue> = {};
+            if (moduleRes.config[info?.key] !== undefined) {
+                filteredConfig[info?.key] = moduleRes.config[info?.key];
+            }
+            const moduleInfo = moduleRes.info?.[info?.key];
+            if (moduleInfo?.config) {
+                for (const configKey of Object.keys(moduleInfo.config)) {
+                    if (moduleRes.config[configKey] !== undefined) {
+                        filteredConfig[configKey] = moduleRes.config[configKey];
+                    }
+                }
+            }
+
+            if (Object.keys(filteredConfig).length === 0) {
+                toaster.create({ type: 'warning', title: '没有可同步的配置' });
+                onClose();
+                return;
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+            for (const targetAccount of normalizedTargets) {
+                try {
+                    await putAccountConfigs(targetAccount, filteredConfig);
+                    successCount++;
+                } catch (e) {
+                    console.error(`Error syncing to ${targetAccount}`, e);
+                    failCount++;
+                }
+            }
+
+            if (failCount === 0) {
+                toaster.create({ type: 'success', title: `成功同步 ${info?.name} 到 ${successCount} 个账号` });
+            } else {
+                toaster.create({ type: 'warning', title: `同步部分完成`, description: `成功: ${successCount}, 失败: ${failCount}` });
+            }
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            toaster.create({ type: 'error', title: '同步过程中发生错误', description: errorMessage });
+        } finally {
+            onClose();
+        }
     }
 
     return (
@@ -76,8 +149,8 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
             {...rest} 
         >
             <Card.Header py={3} cursor="pointer" onClick={onToggleExpand}>
-                <Flex align="center">
-                    <Box onClick={(e) => e.stopPropagation()} mr={3}>
+                <Flex align="center" wrap="wrap" gap={2}>
+                    <Box onClick={(e) => e.stopPropagation()} mr={{ base: 1, md: 3 }}>
                          <Checkbox 
                             defaultChecked={!!config[info.key]} 
                             onCheckedChange={onCheckedChange}
@@ -85,9 +158,9 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
                             colorPalette="blue"
                         />
                     </Box>
-                    <Box flex="1">
-                        <HStack gap={2}>
-                            <Heading size='md' fontWeight="bold">{info?.name}</Heading> 
+                    <Box flex="1" minW="0">
+                        <HStack gap={1} flexWrap="wrap">
+                            <Heading size={{ base: 'sm', md: 'md' }} fontWeight="bold" truncate>{info?.name}</Heading> 
                             {info?.tags.map(item => (
                                 <Tag.Root key={item} colorPalette="purple" variant="subtle" size="sm">
                                     <Tag.Label>{item}</Tag.Label>
@@ -95,14 +168,16 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
                             ))}
                         </HStack>
                     </Box>
-                    <HStack gap={2}>
+                    <HStack gap={{ base: 1, md: 2 }} flexShrink={0}>
                         {info?.runnable &&
-                            <Button size='sm' variant="surface" colorPalette='blue' loading={isOpen} onClick={handleExecuteWrapper}>执行</Button>
+                            <Button size={{ base: 'xs', md: 'sm' }} variant="surface" colorPalette='blue' loading={isOpen} onClick={handleExecuteWrapper}>执行</Button>
                         }
                         {info?.runnable &&
-                            <Button size='sm' variant="ghost" colorPalette='blue' loading={isOpen} onClick={handleResult}>结果</Button>
+                            <Button size={{ base: 'xs', md: 'sm' }} variant="ghost" colorPalette='blue' loading={isOpen} onClick={handleResult}>结果</Button>
                         }
-                        
+                        {areaKey === 'daily' && (
+                            <Button size={{ base: 'xs', md: 'sm' }} variant="ghost" colorPalette='teal' loading={isOpen} onClick={handleSyncConfig} aria-label="同步配置"><FiCopy /></Button>
+                        )}
                          <Box color="fg.muted" transition="transform 0.2s" transform={isExpanded ? "rotate(180deg)" : "rotate(0deg)"}>
                              <FiChevronDown />
                          </Box>
@@ -133,6 +208,15 @@ export default function Module({ alias, config, info, isOpen, onOpen, onClose, .
                         }
                     </Stack>
                 </Card.Body>
+            )}
+            {isDangerous && (
+                <Alert
+                    isOpen={dangerConfirm.open}
+                    onClose={dangerConfirm.onClose}
+                    title="危险操作确认"
+                    body={`「${info?.name}」为危险模块，确定要执行吗？`}
+                    onConfirm={() => { dangerConfirm.onClose(); handleExecute(); }}
+                />
             )}
         </Card.Root >
     )

@@ -11,7 +11,8 @@ import { keyframes } from '@emotion/react'
 
 interface AreaProps {
     alias: string,
-    keys: string
+    keys: string,
+    areaName: string
 }
 
 export interface TocItem {
@@ -19,7 +20,7 @@ export interface TocItem {
     id: string
 }
 
-export default function Area({ alias, keys: key }: AreaProps) {
+export default function Area({ alias, keys: key, areaName }: AreaProps) {
 
     const [config, setConfig] = useState<ModuleResponse | null>(null);
     const { open, onOpen, onClose } = useDisclosure()
@@ -59,7 +60,7 @@ export default function Area({ alias, keys: key }: AreaProps) {
                     ))
                 ) : (
                     config?.order.map((module) => (
-                        <Module key={module} id={module} alias={alias} config={config?.config} info={(config.info[module])} isOpen={open} onOpen={onOpen} onClose={onClose} />
+                        <Module key={module} id={module} alias={alias} areaKey={key} areaName={areaName} config={config?.config} info={(config.info[module])} isOpen={open} onOpen={onOpen} onClose={onClose} />
                     ))
                 )}
             </Stack>
