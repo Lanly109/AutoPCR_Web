@@ -23,8 +23,10 @@ import { toaster } from '../../components/ui/toaster';
 
 interface InfoProps {
     accountInfo: AccountResponse;
-    onSaveSuccess?: () => void; // 添加回调函数属性
+    onSaveSuccess?: () => void;
 }
+
+const TW_CHANNEL = '台服';
 
 const fadeEntry = keyframes`
   from { opacity: 0; transform: translateY(10px); }
@@ -35,32 +37,42 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
     const [username, setUsername] = useState<string>(accountInfo?.username);
     const [password, setPassword] = useState<string>(accountInfo?.password);
     const [channel, setChannel] = useState<string>(accountInfo?.channel);
+    const [viewerId, setViewerId] = useState<string>(
+        accountInfo?.viewer_id ? String(accountInfo.viewer_id) : '',
+    );
     const [batchAccounts, setBatchAccounts] = useState<(string | number)[]>(accountInfo?.batch_accounts || []);
     const { open: isOpen, onOpen, onClose } = useDisclosure();
 
-    // 全选状态
     const [allChecked, setAllChecked] = useState<boolean>(false);
-    // 未选择的账号列表
     const [unselectedAccounts, setUnselectedAccounts] = useState<(string | number)[]>([]);
+    const isTw = channel === TW_CHANNEL;
 
-    // 初始化未选择的账号列表
+    useEffect(() => {
+        setUsername(accountInfo?.username);
+        setPassword(accountInfo?.password);
+        setChannel(accountInfo?.channel);
+        setViewerId(accountInfo?.viewer_id ? String(accountInfo.viewer_id) : '');
+    }, [accountInfo]);
+
     useEffect(() => {
         if (accountInfo?.all_accounts && accountInfo?.batch_accounts) {
             const unselected = accountInfo.all_accounts.filter((account) => !accountInfo.batch_accounts.includes(account));
             setUnselectedAccounts(unselected);
-
-            // 检查是否全选
             setAllChecked(accountInfo.batch_accounts.length === accountInfo.all_accounts.length);
         }
     }, [accountInfo]);
 
     const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (isTw && !viewerId.trim()) {
+            toaster.create({ title: '保存失败', description: '台服账号需要填写 Viewer ID', type: 'error' });
+            return;
+        }
         onOpen();
-        putAccount(accountInfo?.alias, username, password, channel, batchAccounts)
+        const parsedViewerId = isTw ? Number(viewerId.trim()) : undefined;
+        putAccount(accountInfo?.alias, username, password, channel, batchAccounts, parsedViewerId)
             .then((res) => {
                 toaster.create({ title: '保存成功', description: res, type: 'success' });
-                // 调用回调函数通知父组件更新数据
                 if (onSaveSuccess) {
                     onSaveSuccess();
                 }
@@ -78,30 +90,24 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
         setAllChecked(isChecked);
 
         if (isChecked) {
-            // 全选
             setBatchAccounts(accountInfo?.all_accounts ? [...accountInfo.all_accounts] : []);
             setUnselectedAccounts([]);
         } else {
-            // 取消全选
             setBatchAccounts([]);
             setUnselectedAccounts(accountInfo?.all_accounts ? [...accountInfo.all_accounts] : []);
         }
     }
 
-    // 处理单个账号选择
     const handleAccountToggle = (account: string | number) => {
         if (batchAccounts.includes(account)) {
-            // 取消选择
             setBatchAccounts(batchAccounts.filter((item) => item !== account));
             setUnselectedAccounts([...unselectedAccounts, account]);
         } else {
-            // 选择
             setBatchAccounts([...batchAccounts, account]);
             setUnselectedAccounts(unselectedAccounts.filter((item) => item !== account));
         }
     };
 
-    // 当选择变化时，更新全选状态
     useEffect(() => {
         if (accountInfo?.all_accounts) {
             setAllChecked(batchAccounts.length === accountInfo.all_accounts.length);
@@ -136,30 +142,10 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                 <Stack gap={6}>
                     {accountInfo?.alias !== 'BATCH_RUNNER' && (
                         <>
-                            <Field label="账号" required>
-                                <Input
-                                    size="lg"
-                                    placeholder="请输入手机号或账号"
-                                    type="text"
-                                    variant="subtle"
-                                    defaultValue={accountInfo?.username || ''}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                />
-                            </Field>
-                            <Field label="密码" required>
-                                <Input
-                                    size="lg"
-                                    placeholder="请输入密码"
-                                    type="password"
-                                    variant="subtle"
-                                    defaultValue={accountInfo?.password || ''}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                />
-                            </Field>
                             <Field label="平台" required>
                                 <NativeSelect.Root size="lg" variant="subtle">
                                     <NativeSelect.Field
-                                        defaultValue={accountInfo?.channel}
+                                        value={channel}
                                         onChange={(e) => setChannel(e.target.value)}
                                     >
                                         {accountInfo?.channel_option.map((option) => (
@@ -169,6 +155,46 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                                         ))}
                                     </NativeSelect.Field>
                                 </NativeSelect.Root>
+                            </Field>
+                            {isTw && (
+                                <Field label="Viewer ID" required helperText="游戏内 UID，与提取器中的 viewer_id 一致">
+                                    <Input
+                                        size="lg"
+                                        placeholder="例如 1444587588"
+                                        type="number"
+                                        variant="subtle"
+                                        value={viewerId}
+                                        onChange={(e) => setViewerId(e.target.value)}
+                                    />
+                                </Field>
+                            )}
+                            <Field
+                                label={isTw ? 'SHORT_UDID' : '账号'}
+                                required
+                                helperText={isTw ? '提取器给出的 SHORT_UDID 编码串' : undefined}
+                            >
+                                <Input
+                                    size="lg"
+                                    placeholder={isTw ? '请输入 SHORT_UDID' : '请输入手机号或账号'}
+                                    type="text"
+                                    variant="subtle"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                />
+                            </Field>
+                            <Field
+                                label={isTw ? 'UDID' : '密码'}
+                                required
+                                helperText={isTw ? '32 位十六进制 UDID' : undefined}
+                            >
+                                <Input
+                                    size="lg"
+                                    placeholder={isTw ? '请输入 UDID' : '请输入密码'}
+                                    type="password"
+                                    variant="subtle"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
                             </Field>
                             
                             <Button
@@ -208,7 +234,6 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                             </Flex>
 
                             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-                                {/* 左侧：未选择的账号 */}
                                 <Card.Root variant="subtle" size="sm">
                                     <Card.Header pb={2}>
                                         <Text fontWeight="semibold" color="fg.muted">未选择的账号 ({unselectedAccounts.length})</Text>
@@ -235,7 +260,6 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                                     </Card.Body>
                                 </Card.Root>
 
-                                {/* 右侧：已选择的账号 */}
                                 <Card.Root variant="outline" borderColor="blue.solid/20" size="sm">
                                     <Card.Header pb={2} bg="blue.subtle/20" borderTopRadius="md">
                                         <Text fontWeight="semibold" color="blue.fg">已选择的账号 ({batchAccounts.length})</Text>

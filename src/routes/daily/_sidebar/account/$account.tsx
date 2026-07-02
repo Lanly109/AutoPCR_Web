@@ -15,12 +15,21 @@ export const Route = createFileRoute('/daily/_sidebar/account/$account')({
     },
 })
 
+function hasAccountCredentials(accountInfo?: AccountResponse) {
+    if (!accountInfo?.username || !accountInfo?.password) {
+        return false;
+    }
+    if (accountInfo.channel === '台服') {
+        return !!accountInfo.viewer_id;
+    }
+    return true;
+}
+
 function AccountComponent() {
     const { account } = Route.useParams();
     const initialAccountInfo = Route.useLoaderData<AccountResponse>();
     const [accountInfo, setAccountInfo] = useState<AccountResponse>(initialAccountInfo);
 
-    // 添加刷新数据的函数
     const refreshAccountData = async () => {
         try {
             const freshData = await getAccount(account);
@@ -30,7 +39,6 @@ function AccountComponent() {
         }
     };
 
-    // 初始化时设置数据
     useEffect(() => {
         setAccountInfo(initialAccountInfo);
     }, [initialAccountInfo]);
@@ -39,7 +47,7 @@ function AccountComponent() {
         <Tabs.Root 
             lazyMount 
             variant="plain" 
-            defaultValue={accountInfo?.username != '' && accountInfo?.password != '' ? "1" : "0"} 
+            defaultValue={hasAccountCredentials(accountInfo) ? "1" : "0"} 
             display={'flex'} 
             flexDirection={'column'} 
             height={'100%'}
