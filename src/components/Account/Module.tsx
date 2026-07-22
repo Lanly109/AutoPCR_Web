@@ -1,8 +1,6 @@
-import * as React from 'react';
-
-import { Box, Button, Card, Flex, HStack, Heading, Separator, Stack, Tag, useDisclosure } from '@chakra-ui/react'
+import { Box, Button, Card, Collapsible, Flex, HStack, Heading, Separator, Stack, Tag, useDisclosure } from '@chakra-ui/react'
 import { ConfigValue, ModuleInfo } from '@interfaces/Module';
-import { FiChevronDown, FiCopy } from 'react-icons/fi';
+import { FiChevronDown, FiCopy, FiStar } from 'react-icons/fi';
 import { getAccountAreaSingleResultList, postAccountAreaSingle, putAccountConfig, getAccountConfig, putAccountConfigs } from '@api/Account';
 
 import Alert from '../alert';
@@ -22,18 +20,49 @@ interface ModuleProps extends React.ComponentProps<typeof Card.Root> {
     info: ModuleInfo
     isOpen: boolean,
     onOpen: () => void,
-    onClose: () => void
+    onClose: () => void,
+    onConfigUpdate?: (key: string, value: ConfigValue) => void
 }
 
-export default function Module({ alias, areaKey, areaName, config, info, isOpen, onOpen, onClose, ...rest }: ModuleProps) {
+export default function Module({ alias, areaKey, areaName, config, info, isOpen, onOpen, onClose, onConfigUpdate, ...rest }: ModuleProps) {
     const { open: isExpanded, onToggle: onToggleExpand } = useDisclosure({ defaultOpen: false });
     const dangerConfirm = useDisclosure();
     const isDangerous = areaName === '危险';
 
+    const handleToggleFav = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const favKey = `autopcr_fav_${alias}`;
+        const stored = localStorage.getItem(favKey);
+        const favMap = stored ? JSON.parse(stored) as Record<string, string[]> : {};
+        const areaFavs = new Set(favMap[areaKey] || []);
+        
+        const isNowFav = !areaFavs.has(info.key);
+        if (isNowFav) {
+            areaFavs.add(info.key);
+        } else {
+            areaFavs.delete(info.key);
+        }
+        
+        favMap[areaKey] = Array.from(areaFavs);
+        localStorage.setItem(favKey, JSON.stringify(favMap));
+        
+        // 同步通知父组件更新本地状态，使星星立即变色
+        onConfigUpdate?.(`_fav_${info.key}`, isNowFav);
+    };
+
     const onCheckedChange = (details: { checked: boolean | "indeterminate" }) => {
-        putAccountConfig(alias, info?.key, !!details.checked).then((response) => {
+        const isChecked = !!details.checked;
+        const previousValue = config[info.key];
+
+        // 1. 乐观更新：0ms 立即在界面打勾/取消打勾
+        onConfigUpdate?.(info.key, isChecked);
+
+        // 2. 异步请求后端，失败时回滚
+        putAccountConfig(alias, info?.key, isChecked).then((response) => {
             toaster.create({ type: 'success', title: '保存成功', description: response });
         }).catch((err: AxiosError) => {
+            // 请求失败：回滚勾选状态
+            onConfigUpdate?.(info.key, previousValue);
             toaster.create({ type: 'error', title: '保存失败', description: err.response?.data as string || "网络错误" });
         })
     };
@@ -150,17 +179,35 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         >
             <Card.Header py={3} cursor="pointer" onClick={onToggleExpand}>
                 <Flex align="center" wrap="wrap" gap={2}>
-                    <Box onClick={(e) => e.stopPropagation()} mr={{ base: 1, md: 3 }}>
+                    <Box onClick={(e) => e.stopPropagation()} mr={{ base: 1, md: 1 }}>
+                         {/* 受控组件绑定，保证导入/更新后界面同步勾选 */}
                          <Checkbox 
-                            defaultChecked={!!config[info.key]} 
+                            checked={!!config[info.key]} 
                             onCheckedChange={onCheckedChange}
                             size="lg"
                             colorPalette="blue"
                         />
                     </Box>
                     <Box flex="1" minW="0">
-                        <HStack gap={1} flexWrap="wrap">
-                            <Heading size={{ base: 'sm', md: 'md' }} fontWeight="bold" truncate>{info?.name}</Heading> 
+                        <HStack gap={2} flexWrap="wrap" align="center">
+                            {/* 模块名称 */}
+                            <Heading size={{ base: 'sm', md: 'md' }} fontWeight="bold" truncate>{info?.name}</Heading>
+                            
+                            {/* 收藏黄星 */}
+                            <Box
+                                onClick={handleToggleFav}
+                                cursor="pointer"
+                                color={config?.[`_fav_${info.key}`] ? "yellow.400" : "gray.400"}
+                                fontSize="1.25rem"
+                                lineHeight={1}
+                                display="flex"
+                                alignItems="center"
+                                p={0}
+                            >
+                                <FiStar fill={config?.[`_fav_${info.key}`] ? "currentColor" : "none"} />
+                            </Box>
+                            
+                            {/* 标签 */}
                             {info?.tags.map(item => (
                                 <Tag.Root key={item} colorPalette="purple" variant="subtle" size="sm">
                                     <Tag.Label>{item}</Tag.Label>
@@ -185,30 +232,32 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
                 </Flex>
             </Card.Header>
 
-            {isExpanded && (
-                <Card.Body pt={0} animation="fade-in 0.2s">
-                    <Stack gap='4'>
-                        {info?.description &&
-                            <Box bg="bg.subtle" p={3} borderRadius="lg" fontSize="sm" color="fg.muted">
-                                {info?.description}
-                            </Box>
-                        }
-                        {info?.description && info?.config_order.length != 0 && <Separator borderColor="border.subtle" />}
-                        {info?.config_order.length != 0 &&
-                            <Box>
-                                <Stack gap='4'>
-                                    <Heading size='sm' color="fg.subtle">设置项</Heading>
-                                    {
-                                        info?.config_order.map((key) => (
-                                            <Config key={key} alias={alias} value={config[key]} info={info.config[key]} />
-                                        ))
-                                    }
-                                </Stack>
-                            </Box>
-                        }
-                    </Stack>
-                </Card.Body>
-            )}
+            <Collapsible.Root open={isExpanded}>
+                <Collapsible.Content>
+                    <Card.Body pt={0} animation="fade-in 0.2s">
+                        <Stack gap='4'>
+                            {info?.description &&
+                                <Box bg="bg.subtle" p={3} borderRadius="lg" fontSize="sm" color="fg.muted">
+                                    {info?.description}
+                                </Box>
+                            }
+                            {info?.description && info?.config_order.length != 0 && <Separator borderColor="border.subtle" />}
+                            {info?.config_order.length != 0 &&
+                                <Box>
+                                    <Stack gap='4'>
+                                        <Heading size='sm' color="fg.subtle">设置项</Heading>
+                                        {
+                                            info?.config_order.map((key) => (
+                                                <Config key={key} alias={alias} value={config[key]} info={info.config[key]} />
+                                            ))
+                                        }
+                                    </Stack>
+                                </Box>
+                            }
+                        </Stack>
+                    </Card.Body>
+                </Collapsible.Content>
+            </Collapsible.Root>
             {isDangerous && (
                 <Alert
                     isOpen={dangerConfirm.open}
@@ -221,4 +270,3 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         </Card.Root >
     )
 }
-
