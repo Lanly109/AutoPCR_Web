@@ -85,13 +85,24 @@ export async function delAccount(alias: string) {
   return response.data;
 }
 
-export async function putAccount(alias: string, account: string, password: string, channel: string, batch_accounts: (string | number)[]) {
-  const response = await API.put<DefaultResponse>(`/account/${alias}`, {
+export async function putAccount(
+  alias: string,
+  account: string,
+  password: string,
+  channel: string,
+  batch_accounts: (string | number)[],
+  viewer_id?: number,
+) {
+  const payload: Record<string, unknown> = {
     username: account,
     password: password,
     channel: channel,
-	batch_accounts: batch_accounts
-  });
+    batch_accounts: batch_accounts,
+  };
+  if (channel === '台服') {
+    payload.viewer_id = viewer_id ?? 0;
+  }
+  const response = await API.put<DefaultResponse>(`/account/${alias}`, payload);
   return response.data;
 }
 

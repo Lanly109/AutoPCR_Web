@@ -20,6 +20,10 @@ export interface AccountResponse {
    */
   channel_option: string[];
   /**
+   * 台服 Viewer ID
+   */
+  viewer_id?: number;
+  /**
    * 功能类型 
    */
   area: AreaInfo[];
