@@ -38,8 +38,20 @@ function AccountComponent() {
     };
 
     useEffect(() => {
-        setAccountInfo(initialAccountInfo);
-    }, [initialAccountInfo]);
+         setActiveTab(initialTab);
+     }, [initialAccountInfo, initialTab]);
+
+    const activeAreaIndex = Number(activeTab) - 1;
+    const currentArea = activeTab !== "0" && accountInfo?.area ? accountInfo.area[activeAreaIndex] : null;
+    const isCurrentTabFavOnly = currentArea ? !!favOnlyMap[currentArea.key] : false;
+
+    const handleToggleCurrentFavOnly = () => {
+        if (!currentArea?.key) return;
+        setFavOnlyMap(prev => ({
+            ...prev,
+            [currentArea.key]: !prev[currentArea.key]
+        }));
+    };
 
     const activeAreaIndex = Number(activeTab) - 1;
     const currentArea = activeTab !== "0" && accountInfo?.area ? accountInfo.area[activeAreaIndex] : null;
@@ -87,7 +99,10 @@ function AccountComponent() {
                         color: "white", 
                         shadow: "md"
                     }}
-                    _hover={{ bg: "bg.subtle" }}
+                    _hover={{ 
+                        bg: "bg.subtle",
+                        _selected: { bg: "blue.solid", color: "white" }
+                             }}
                 > 
                     {account} 
                 </Tabs.Trigger>

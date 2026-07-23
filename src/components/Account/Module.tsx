@@ -2,7 +2,7 @@ import { Box, Button, Card, Collapsible, Flex, HStack, Heading, Separator, Stack
 import { ConfigValue, ModuleInfo } from '@interfaces/Module';
 import { FiChevronDown, FiCopy, FiStar } from 'react-icons/fi';
 import { getAccountAreaSingleResultList, postAccountAreaSingle, putAccountConfig, getAccountConfig, putAccountConfigs } from '@api/Account';
-
+import * as React from 'react';
 import Alert from '../alert';
 import { AxiosError } from 'axios';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -33,7 +33,14 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         e.stopPropagation();
         const favKey = `autopcr_fav_${alias}`;
         const stored = localStorage.getItem(favKey);
-        const favMap = stored ? JSON.parse(stored) as Record<string, string[]> : {};
+         let favMap: Record<string, string[]> = {};
+         if (stored) {
+             try {
+                 favMap = JSON.parse(stored) as Record<string, string[]>;
+             } catch {
+                 favMap = {};
+             }
+         }
         const areaFavs = new Set(favMap[areaKey] || []);
         
         const isNowFav = !areaFavs.has(info.key);

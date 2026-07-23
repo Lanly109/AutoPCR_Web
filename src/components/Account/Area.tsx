@@ -33,6 +33,7 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
 
     useEffect(() => {
         let isMounted = true;
+        setState({ config: null, isLoading: true });
 
         if (alias && key) {
             getAccountConfig(alias, key)

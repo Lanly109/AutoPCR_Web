@@ -1,6 +1,7 @@
 import { Box, Button, Checkbox as ChakraCheckbox, Input, NativeSelect, Stack, Text, Textarea } from '@chakra-ui/react';
 import { AxiosError } from 'axios';
 import NiceModal from '@ebay/nice-modal-react';
+import type * as React from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { putAccountConfig } from '@/api/Account';
 import { ConfigInfo, ConfigValue } from '@/interfaces/Module';
