@@ -45,7 +45,7 @@ const NavItem = ({ icon, children, href, onClick, ...rest }: NavItemProps) => {
             align="center"
             py={2}
             px={3}
-            borderRadius="full"
+            borderRadius="lg"
             role="group"
             cursor="pointer"
             transition="all 0.2s"
