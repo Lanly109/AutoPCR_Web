@@ -13,7 +13,7 @@ import {getAccountConfig, putAccountConfigs} from "@api/Account.ts";
 import {AreaInfo} from "@interfaces/Account.ts";
 import {AxiosError} from "axios";
 import {saveAs} from "file-saver";
-import { toaster } from "../../components/ui/toaster";
+import { toaster } from "@components/ui/toaster";
 
 interface ConfigIOProps {
     alias: string;
@@ -66,8 +66,10 @@ const ConfigImportExport = ({ alias, areas, onImportSuccess }: ConfigIOProps) =>
     const toCheckedConfigItem = (type: ConfigType, candidates: Candidate[], value: unknown): ConfigValue | undefined => {
         switch (type) {
             case 'bool':
+                if (typeof value === "boolean") return value;
+                break;
             case 'single':
-                if (typeof value === "string" || typeof value === "number" || typeof value === "bool") return value;
+                if (typeof value === "string" || typeof value === "number") return value;
                 break
             case 'int':
                 if (typeof value === "number") return value;
