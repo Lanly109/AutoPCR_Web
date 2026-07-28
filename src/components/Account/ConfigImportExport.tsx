@@ -54,7 +54,10 @@ const ConfigImportExport = ({ alias, areas, onImportSuccess }: ConfigIOProps) =>
             
             const strCfg = btoa(encodeURIComponent(JSON.stringify(allConfig)));
             const blob = new Blob([strCfg], { type: 'text/plain;charset=utf-8' });
-            saveAs(blob, `autopcr_${alias}.autopcrcfg`);
+            const storedName = localStorage.getItem(`autopcr_displayName_${alias}`);
+            const rawName = (storedName && storedName.trim()) ? storedName.trim() : alias;
+            const safeName = rawName.replace(/[\\/:*?"<>|]/g, '_');
+            saveAs(blob, `autopcr_${safeName}.autopcrcfg`);
             toaster.create({ type: "success", title: "配置导出成功", description: "配置文件下载可能会有延迟，请稍后..." });
         }).catch((err: Error) => {
             toaster.create({ type: 'error', title: '配置保存失败', description: err.message });
