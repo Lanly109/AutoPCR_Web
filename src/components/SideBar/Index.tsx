@@ -45,7 +45,7 @@ const NavItem = ({ icon, children, href, onClick, ...rest }: NavItemProps) => {
             align="center"
             py={2}
             px={3}
-            borderRadius="lg"
+            borderRadius="0"
             role="group"
             cursor="pointer"
             transition="all 0.2s"
@@ -113,8 +113,8 @@ export default function Nav() {
             }
         };
 
-        eventSource.onerror = function(err) {
-            console.error('Error receiving SSE', err);
+        eventSource.onerror = function() {
+            // console.error('Error receiving SSE', err);
         };
 
         return () => {
