@@ -32,6 +32,12 @@ const fadeEntry = keyframes`
 `;
 
 export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
+    const alias = accountInfo?.alias || '';
+    const displayName =
+        alias && alias !== 'BATCH_RUNNER'
+            ? (localStorage.getItem(`autopcr_displayName_${alias}`) || alias)
+            : alias;
+
     const [username, setUsername] = useState<string>(accountInfo?.username);
     const [password, setPassword] = useState<string>(accountInfo?.password);
     const [channel, setChannel] = useState<string>(accountInfo?.channel);
@@ -123,7 +129,7 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
         >
              <Flex justify="space-between" align="center" mb={2}>
                 <Heading size="lg" fontWeight="bold" letterSpacing="tight">
-                    {accountInfo?.alias === 'BATCH_RUNNER' ? '批量运行配置' : accountInfo?.alias}
+                    {alias === 'BATCH_RUNNER' ? '批量运行配置' : displayName}
                 </Heading>
                 {accountInfo?.alias !== 'BATCH_RUNNER' && (
                     <Text fontSize="sm" color="fg.muted">
