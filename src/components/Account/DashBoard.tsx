@@ -627,6 +627,7 @@ function AccountInfo({
     const [isEditingName, setIsEditingName] = useState(false);
     const [displayName, setDisplayName] = useState(() => getDisplayName(alias));
     const [nameDraft, setNameDraft] = useState(displayName);
+    const composingRef = useRef(false);
 
     const clean = account.daily_clean_time;
     const cleanStatus = clean?.status || '未知';
@@ -695,7 +696,7 @@ function AccountInfo({
     };
 
     const handleDailyResult = () => {
-        toaster.create({ type: 'info', title: `正在获取${alias}的日常结果...` });
+        toaster.create({ type: 'info', title: `正在获取${displayName || alias}的日常结果...` });
         getAccountDailyResultList(alias)
             .then(async (res) => {
                 toaster.create({ type: 'success', title: '获取日常结果成功' });
@@ -714,23 +715,41 @@ function AccountInfo({
         void navigate({ to: `${DashBoardRoute.to || ''}${alias}` as any });
     };
 
+    const nameInputRef = useRef<HTMLInputElement>(null);
+
     const startEditName = (e: React.MouseEvent) => {
         e.stopPropagation();
         setNameDraft(displayName);
         setIsEditingName(true);
     };
 
+    useEffect(() => {
+        if (!isEditingName) return;
+        const el = nameInputRef.current;
+        if (!el) return;
+        el.focus();
+        // 光标放到末尾，避免整段被选中
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+    }, [isEditingName]);
+
     const commitDisplayName = () => {
         const next = nameDraft.trim();
-        if (!next) {
+        // 空或改回原始 alias → 清除自定义显示名
+        if (!next || next === alias) {
             localStorage.removeItem(DISPLAY_NAME_KEY(alias));
             setDisplayName(alias);
             setNameDraft(alias);
             setIsEditingName(false);
             return;
         }
+        // 没改
+        if (next === displayName) {
+            setIsEditingName(false);
+            return;
+        }
         const occupied = getOccupiedNames(alias);
-        if (occupied.has(next) && next !== displayName) {
+        if (occupied.has(next)) {
             toaster.create({
                 type: 'error',
                 title: '显示名冲突',
@@ -740,14 +759,83 @@ function AccountInfo({
             setIsEditingName(false);
             return;
         }
-        if (next === alias) {
-            localStorage.removeItem(DISPLAY_NAME_KEY(alias));
-        } else {
-            localStorage.setItem(DISPLAY_NAME_KEY(alias), next);
-        }
+        localStorage.setItem(DISPLAY_NAME_KEY(alias), next);
         setDisplayName(next);
         setIsEditingName(false);
     };
+
+    // 始终同一 Input：展示/编辑同一位置，避免 Text→Input 错位
+    const nameInput = (
+        <Input
+            ref={nameInputRef}
+            size="sm"
+            value={isEditingName ? nameDraft : displayName}
+            readOnly={!isEditingName}
+            title={isEditingName ? undefined : '点击修改显示名称'}
+            onClick={(e) => {
+                e.stopPropagation();
+                if (!isEditingName) startEditName(e);
+            }}
+            onChange={(e) => {
+                if (!isEditingName) return;
+                setNameDraft(e.target.value);
+            }}
+            onCompositionStart={() => {
+                composingRef.current = true;
+            }}
+            onCompositionEnd={(e) => {
+                composingRef.current = false;
+                setNameDraft((e.target as HTMLInputElement).value);
+            }}
+            onBlur={() => {
+                if (!isEditingName) return;
+                if (composingRef.current) return;
+                commitDisplayName();
+            }}
+            onKeyDown={(e) => {
+                if (!isEditingName) return;
+                if (composingRef.current) return;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setNameDraft(displayName);
+                    setIsEditingName(false);
+                }
+            }}
+            fontWeight="bold"
+            fontSize="inherit"
+            lineHeight="1.25"
+            h="2rem"
+            minH="2rem"
+            minW="4.5em"
+            w="auto"
+            maxW="14em"
+            px={2}
+            py={0}
+            borderRadius="md"
+            borderWidth="1px"
+            borderColor={isEditingName ? 'blue.focusRing' : 'transparent'}
+            bg={isEditingName ? 'bg.panel' : 'transparent'}
+            boxShadow="none"
+            cursor={isEditingName ? 'text' : 'text'}
+            _hover={
+                isEditingName
+                    ? undefined
+                    : { bg: 'bg.subtle', borderColor: 'border.subtle' }
+            }
+            _focusVisible={{
+                borderColor: 'blue.focusRing',
+                boxShadow: 'none',
+            }}
+            css={{
+                // 取消部分浏览器只读态发灰
+                '&:read-only': { opacity: 1, cursor: 'text' },
+            }}
+        />
+    );
 
     const toCheckedConfigItem = (
         type: ConfigType,
@@ -881,13 +969,7 @@ function AccountInfo({
         }
     };
 
-    const ActionButtons = ({
-        size = 'xs' as const,
-        flexMode = false,
-    }: {
-        size?: 'xs' | 'sm' | 'md';
-        flexMode?: boolean;
-    }) => (
+    const renderActionButtons = (size: 'xs' | 'sm' | 'md' = 'xs', flexMode = false) => (
         <HStack
             gap={flexMode ? 0 : 1}
             w={flexMode ? 'full' : undefined}
@@ -903,7 +985,7 @@ function AccountInfo({
                 onChange={handleImportConfigFile}
             />
 
-            <Tooltip content="立刻清理"  openDelay={0} closeDelay={0}>
+            <Tooltip content="立刻清理" openDelay={0} closeDelay={0}>
                 <IconButton
                     aria-label="Clean Daily"
                     size={size}
@@ -961,42 +1043,6 @@ function AccountInfo({
         </HStack>
     );
 
-    const NameEditor = ({ fontSize = 'sm' }: { fontSize?: string }) =>
-        isEditingName ? (
-            <Input
-                size="sm"
-                value={nameDraft}
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={commitDisplayName}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    if (e.key === 'Escape') {
-                        setNameDraft(displayName);
-                        setIsEditingName(false);
-                    }
-                }}
-                fontWeight="bold"
-                fontSize={fontSize}
-                maxW="12em"
-                lineHeight="1"
-            />
-        ) : (
-            <Text
-                as="span"
-                fontWeight="bold"
-                fontSize={fontSize}
-                lineHeight="1"
-                cursor="text"
-                title="点击修改显示名称"
-                onClick={startEditName}
-                _hover={{ color: 'blue.fg' }}
-                whiteSpace="nowrap"
-            >
-                {displayName}
-            </Text>
-        );
 
     if (isTableView) {
         return (
@@ -1021,36 +1067,41 @@ function AccountInfo({
                         onClick={goDetail}
                         title="进入详细设置"
                     >
-                        <Flex
-                            boxSize="2em"
-                            flexShrink={0}
-                            bg="blue.subtle"
-                            color="blue.fg"
-                            borderRadius="full"
-                            align="center"
-                            justify="center"
-                            fontSize="sm"
-                            lineHeight="1"
-                        >
-                            {displayName.charAt(0).toUpperCase()}
-                        </Flex>
-
+                        {/* ✅ 补回内层 Flex 容器 */}
                         <Flex align="center" gap={1} minW={0} flex="1" lineHeight="1">
+                            <Flex
+                                boxSize="2em"
+                                flexShrink={0}
+                                bg="blue.subtle"
+                                color="blue.fg"
+                                borderRadius="full"
+                                align="center"
+                                justify="center"
+                                fontSize="sm"
+                                lineHeight="1"
+                            >
+                                {displayName.charAt(0).toUpperCase()}
+                            </Flex>
+
                             <Box
                                 onClick={(e) => e.stopPropagation()}
                                 display="flex"
                                 alignItems="center"
-                                lineHeight="1"
+                                h="2rem"
+                                fontSize="sm"
+                                flex="0 1 auto"
+                                minW={0}
                             >
-                                <NameEditor fontSize="sm" />
+                                {nameInput}
                             </Box>
+
                             {displayName !== alias && (
                                 <Text
                                     as="span"
                                     fontSize="xs"
                                     color="fg.muted"
-                                    whiteSpace="nowrap"
-                                    lineHeight="1"
+                                                    whiteSpace="nowrap"
+                    lineHeight="1"
                                 >
                                     {alias}
                                 </Text>
@@ -1121,7 +1172,7 @@ function AccountInfo({
                     onClick={goDetail}
                     title="进入详细设置"
                 >
-                    <ActionButtons size="xs" />
+                    {renderActionButtons('xs')}
                 </Table.Cell>
             </Table.Row>
         );
@@ -1145,7 +1196,7 @@ function AccountInfo({
             >
                 <Card.Header pb={2}>
                     <Flex justify="space-between" align="start" gap={2}>
-                        <Flex align="center" gap={2} minW={0} flex="1" pt={0.5}>
+                        <Flex align="center" gap={0} minW={0} flex="1" pt={0}>
                             <Box
                                 onClick={(e) => e.stopPropagation()}
                                 flexShrink={0}
@@ -1156,14 +1207,16 @@ function AccountInfo({
                                 <Radio value={alias} colorPalette="purple" />
                             </Box>
                             <Box
-                                maxW="55%"
+                                maxW="70%"
                                 minW={0}
                                 onClick={(e) => e.stopPropagation()}
                                 display="flex"
                                 alignItems="center"
-                                lineHeight="1"
+                                h="2rem"
+                                fontSize="lg"
+                                flex="0 1 auto"
                             >
-                                <NameEditor fontSize="lg" />
+                                {nameInput}
                             </Box>
                             {displayName !== alias && (
                                 <Text
@@ -1240,7 +1293,7 @@ function AccountInfo({
             </Box>
 
             <Card.Footer pt={2}>
-                <ActionButtons size="md" flexMode />
+                {renderActionButtons('md', true)}
             </Card.Footer>
         </Card.Root>
     );
