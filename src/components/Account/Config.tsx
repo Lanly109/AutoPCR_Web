@@ -16,17 +16,20 @@ interface ConfigProps {
     alias: string;
     value: ConfigValue;
     info: ConfigInfo;
+    onConfigUpdate?: (key: string, value: ConfigValue) => void;
 }
 
 /**
  * 通用受控配置 Hook
  * - 管理本地 state，外部 value 变化时自动同步
  * - 提供 save 方法，带乐观更新 + 失败回滚 + 卸载保护
+ * - 保存成功后通过 onConfigUpdate 回写父级配置快照，保证折叠/重挂载后显示最新值
  */
 function useConfigState<T>(
     alias: string,
     key: string,
     propValue: T,
+    onConfigUpdate?: (key: string, value: ConfigValue) => void,
     transform?: (val: T) => ConfigValue
 ) {
     const [state, setState] = useState<T>(propValue);
@@ -48,6 +51,7 @@ function useConfigState<T>(
         const payload = transform ? transform(newValue) : (newValue as ConfigValue);
         try {
             const res = await putAccountConfig(alias, key, payload);
+            onConfigUpdate?.(key, payload);
             if (mountedRef.current) {
                 toaster.create({ type: 'success', title: '保存成功', description: res });
             }
@@ -68,8 +72,8 @@ function useConfigState<T>(
 }
 
 // ---------- ConfigBool ----------
-function ConfigBool({ alias, value, info }: ConfigProps) {
-    const [checked, , save] = useConfigState(alias, info.key, value as boolean);
+function ConfigBool({ alias, value, info, onConfigUpdate }: ConfigProps) {
+    const [checked, , save] = useConfigState(alias, info.key, value as boolean, onConfigUpdate);
 
     return (
         <InputGroup
@@ -86,7 +90,7 @@ function ConfigBool({ alias, value, info }: ConfigProps) {
 }
 
 // ---------- ConfigInt（改为 onBlur 保存）----------
-function ConfigInt({ alias, value, info }: ConfigProps) {
+function ConfigInt({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const min = Math.min(...(info.candidates.map((c) => c.value) as number[]));
     const max = Math.max(...(info.candidates.map((c) => c.value) as number[]));
 
@@ -127,6 +131,7 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
         const payload: ConfigValue = finalValue as ConfigValue;
         putAccountConfig(alias, info.key, payload)
             .then((res) => {
+                onConfigUpdate?.(info.key, payload);
                 if (mountedRef.current) {
                     toaster.create({ type: 'success', title: '保存成功', description: res });
                 }
@@ -165,8 +170,8 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
 }
 
 // ---------- ConfigSingle ----------
-function ConfigSingle({ alias, value, info }: ConfigProps) {
-    const [selectValue, , save] = useConfigState(alias, info.key, value as string | number);
+function ConfigSingle({ alias, value, info, onConfigUpdate }: ConfigProps) {
+    const [selectValue, , save] = useConfigState(alias, info.key, value as string | number, onConfigUpdate);
 
     return (
         <InputGroup startElement={info.desc}>
@@ -196,7 +201,7 @@ function ConfigSingle({ alias, value, info }: ConfigProps) {
 }
 
 // ---------- ConfigMulti ----------
-function ConfigMulti({ alias, value, info }: ConfigProps) {
+function ConfigMulti({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const initialStrArr = useMemo(
         () => (value as (string | number)[]).map(String),
         [JSON.stringify(value)]
@@ -222,6 +227,7 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
         setGroupValue(newStrArr);
         putAccountConfig(alias, info.key, postValue)
             .then((res) => {
+                onConfigUpdate?.(info.key, postValue);
                 if (mountedRef.current)
                     toaster.create({ type: 'success', title: '保存成功', description: res });
             })
@@ -271,7 +277,7 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
 }
 
 // ---------- ConfigTime ----------
-function ConfigTime({ alias, value, info }: ConfigProps) {
+function ConfigTime({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const [timeStr, setTimeStr] = useState(value as string);
 
     useEffect(() => {
@@ -282,6 +288,7 @@ function ConfigTime({ alias, value, info }: ConfigProps) {
         const newValue = e.target.value;
         putAccountConfig(alias, info.key, newValue as ConfigValue)
             .then((res) => {
+                onConfigUpdate?.(info.key, newValue as ConfigValue);
                 toaster.create({ type: 'success', title: '保存成功', description: res });
             })
             .catch((err: AxiosError) => {
@@ -308,7 +315,7 @@ function ConfigTime({ alias, value, info }: ConfigProps) {
 }
 
 // ---------- ConfigText ----------
-function ConfigText({ alias, value, info }: ConfigProps) {
+function ConfigText({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const [textStr, setTextStr] = useState(value as string);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -328,6 +335,7 @@ function ConfigText({ alias, value, info }: ConfigProps) {
         const newValue = e.target.value;
         putAccountConfig(alias, info.key, newValue as ConfigValue)
             .then((res) => {
+                onConfigUpdate?.(info.key, newValue as ConfigValue);
                 toaster.create({ type: 'success', title: '保存成功', description: res });
             })
             .catch((err: AxiosError) => {
@@ -355,7 +363,7 @@ function ConfigText({ alias, value, info }: ConfigProps) {
 }
 
 // ---------- ConfigMultiSearch ----------
-function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
+function ConfigMultiSearch({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const [localValue, setLocalValue] = useState<ConfigValue>(value);
     const mountedRef = useRef(true);
 
@@ -384,6 +392,7 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
             if (ret === undefined) return;
 
             const res = await putAccountConfig(alias, info.key, ret);
+            onConfigUpdate?.(info.key, ret);
             if (mountedRef.current) {
                 setLocalValue(ret);
                 toaster.create({ type: 'success', title: '保存成功', description: res });
@@ -417,22 +426,22 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
 }
 
 // ---------- 主组件 ----------
-export default function Config({ alias, value, info }: ConfigProps) {
+export default function Config({ alias, value, info, onConfigUpdate }: ConfigProps) {
     switch (info?.config_type) {
         case 'bool':
-            return <ConfigBool alias={alias} value={value} info={info} />;
+            return <ConfigBool alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'int':
-            return <ConfigInt alias={alias} value={value} info={info} />;
+            return <ConfigInt alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'single':
-            return <ConfigSingle alias={alias} value={value} info={info} />;
+            return <ConfigSingle alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'multi':
-            return <ConfigMulti alias={alias} value={value} info={info} />;
+            return <ConfigMulti alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'time':
-            return <ConfigTime alias={alias} value={value} info={info} />;
+            return <ConfigTime alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'text':
-            return <ConfigText alias={alias} value={value} info={info} />;
+            return <ConfigText alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'multi_search':
-            return <ConfigMultiSearch alias={alias} value={value} info={info} />;
+            return <ConfigMultiSearch alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         default:
             return null;
     }

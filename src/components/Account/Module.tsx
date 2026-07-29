@@ -255,7 +255,7 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
                                         <Heading size='sm' color="fg.subtle">设置项</Heading>
                                         {
                                             info?.config_order.map((key) => (
-                                                <Config key={key} alias={alias} value={config[key]} info={info.config[key]} />
+                                                <Config key={key} alias={alias} value={config[key]} info={info.config[key]} onConfigUpdate={onConfigUpdate} />
                                             ))
                                         }
                                     </Stack>
