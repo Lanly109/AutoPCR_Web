@@ -6,6 +6,67 @@ import { ConfigValue, ModuleResponse } from '@interfaces/Module';
 import {AccountInfo, ResultInfo, RoleInfo, UserInfo, UserInfoResponse} from '@interfaces/UserInfo';
 import {useEffect, useState} from "react";
 
+const ACCOUNT_CONFIG_CACHE_LIMIT = 24;
+const accountConfigCache = new Map<string, ModuleResponse>();
+const accountConfigRequests = new Map<string, Promise<ModuleResponse>>();
+let accountConfigCacheVersion = 0;
+
+const accountConfigCacheKey = (alias: string, area: string) => `${alias}\u0000${area}`;
+
+function cacheAccountConfig(key: string, config: ModuleResponse) {
+  // Reinsert hits at the end so the map also acts as a small LRU cache.
+  accountConfigCache.delete(key);
+  accountConfigCache.set(key, config);
+
+  while (accountConfigCache.size > ACCOUNT_CONFIG_CACHE_LIMIT) {
+    const oldestKey = accountConfigCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    accountConfigCache.delete(oldestKey);
+  }
+}
+
+function updateCachedAccountConfigs(alias: string, configs: Record<string, ConfigValue>) {
+  const keyPrefix = `${alias}\u0000`;
+  const updates: [string, ModuleResponse][] = [];
+
+  for (const [key, cached] of accountConfigCache) {
+    if (!key.startsWith(keyPrefix)) continue;
+
+    const relevantEntries = Object.entries(configs).filter(([configKey]) =>
+      Object.prototype.hasOwnProperty.call(cached.config, configKey),
+    );
+    if (relevantEntries.length === 0) continue;
+
+    updates.push([key, {
+      ...cached,
+      config: { ...cached.config, ...Object.fromEntries(relevantEntries) },
+    }]);
+  }
+
+  for (const [key, updated] of updates) {
+    cacheAccountConfig(key, updated);
+  }
+}
+
+function clearCachedAccountConfigs(alias?: string) {
+  // Prevent requests started before an import/sync/delete from repopulating stale data.
+  accountConfigCacheVersion += 1;
+
+  if (alias === undefined) {
+    accountConfigCache.clear();
+    accountConfigRequests.clear();
+    return;
+  }
+
+  const keyPrefix = `${alias}\u0000`;
+  for (const key of accountConfigCache.keys()) {
+    if (key.startsWith(keyPrefix)) accountConfigCache.delete(key);
+  }
+  for (const key of accountConfigRequests.keys()) {
+    if (key.startsWith(keyPrefix)) accountConfigRequests.delete(key);
+  }
+}
+
 export function useUserRole() {
   const [role, setRole] = useState<RoleInfo>()
 
@@ -48,6 +109,7 @@ export async function postAccountImport(file: File) {
       'Content-Type': 'multipart/form-data',
     },
   });
+  clearCachedAccountConfigs();
   return response.data;
 }
 
@@ -60,11 +122,13 @@ export async function postAccount(alias: string) {
 
 export async function deleteAccount() {
   const response = await API.delete<DefaultResponse>(`/`);
+  clearCachedAccountConfigs();
   return response.data;
 }
 
 export async function clearAccounts() {
   const response = await API.delete<DefaultResponse>(`/account`);
+  clearCachedAccountConfigs();
   return response.data;
 }
 
@@ -72,6 +136,7 @@ export async function postAccountSyncConfig(alias: string) {
   const response = await API.post<DefaultResponse>(`/account/sync`, {
     alias: alias,
   });
+  clearCachedAccountConfigs(alias);
   return response.data;
 }
 
@@ -82,6 +147,7 @@ export async function getAccount(alias: string) {
 
 export async function delAccount(alias: string) {
   const response = await API.delete<DefaultResponse>(`/account/${alias}`);
+  clearCachedAccountConfigs(alias);
   return response.data;
 }
 
@@ -96,8 +162,32 @@ export async function putAccount(alias: string, account: string, password: strin
 }
 
 export async function getAccountConfig(alias: string, area: string) {
-  const response = await API.get<ModuleResponse>(`/account/${alias}/${area}`);
-  return response.data;
+  const key = accountConfigCacheKey(alias, area);
+  const cached = accountConfigCache.get(key);
+  if (cached) {
+    cacheAccountConfig(key, cached);
+    return cached;
+  }
+
+  const pendingRequest = accountConfigRequests.get(key);
+  if (pendingRequest) return pendingRequest;
+
+  const requestVersion = accountConfigCacheVersion;
+  const request = API.get<ModuleResponse>(`/account/${alias}/${area}`)
+    .then((response) => {
+      if (requestVersion === accountConfigCacheVersion) {
+        cacheAccountConfig(key, response.data);
+      }
+      return response.data;
+    })
+    .finally(() => {
+      if (accountConfigRequests.get(key) === request) {
+        accountConfigRequests.delete(key);
+      }
+    });
+
+  accountConfigRequests.set(key, request);
+  return request;
 }
 
 export async function putAccountConfig(alias: string, key: string, value: ConfigValue) {
@@ -106,6 +196,7 @@ export async function putAccountConfig(alias: string, key: string, value: Config
 
 export async function putAccountConfigs(alias: string, configs: Record<string, ConfigValue>) {
   const response = await API.put<DefaultResponse>(`/account/${alias}/config`, configs);
+  updateCachedAccountConfigs(alias, configs);
   return response.data;
 }
 

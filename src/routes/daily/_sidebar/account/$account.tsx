@@ -131,7 +131,9 @@ function AccountComponent() {
     return (
         <Tabs.Root
             lazyMount
-            unmountOnExit={false}
+            // Area tabs contain many form controls. Keeping every visited panel mounted
+            // makes each later tab change reconcile an ever-growing hidden component tree.
+            unmountOnExit
             variant="plain"
             value={activeTab}
             onValueChange={(d) => setActiveTab(d.value)}

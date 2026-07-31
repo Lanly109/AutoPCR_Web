@@ -104,7 +104,7 @@ const singleSelectModal = NiceModal.create(({ candidates, value }: SingleSelectM
                         )}
                     </Box>
                     <Text mt={2} fontSize="xs" color="fg.muted">
-                        单击选中，双击直接确认；保存后写入仍为单个值（兼容后端 single / unitchoice）
+                        单击选中，双击直接确认；保存后写入仍为单个值
                     </Text>
                 </ModalBody>
                 <ModalFooter>
