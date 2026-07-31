@@ -1,7 +1,16 @@
-import { Box, Button, Checkbox as ChakraCheckbox, Input, NativeSelect, Stack, Text, Textarea } from '@chakra-ui/react';
+import {
+    Box,
+    Button,
+    Checkbox as ChakraCheckbox,
+    Flex,
+    Input,
+    NativeSelect,
+    Stack,
+    Text,
+    Textarea,
+} from '@chakra-ui/react';
 import { AxiosError } from 'axios';
 import NiceModal from '@ebay/nice-modal-react';
-import type * as React from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { putAccountConfig } from '@/api/Account';
 import { ConfigInfo, ConfigValue } from '@/interfaces/Module';
@@ -11,6 +20,7 @@ import { NumberInput, NumberInputField } from '../../components/ui/number-input'
 import { Switch } from '../../components/ui/switch';
 import { toaster } from '../../components/ui/toaster';
 import multiSelectModal from './MultiSelectModal';
+import singleSelectModal from './SingleSelectModal';
 
 interface ConfigProps {
     alias: string;
@@ -18,16 +28,29 @@ interface ConfigProps {
     info: ConfigInfo;
 }
 
-/**
- * 通用受控配置 Hook
- * - 管理本地 state，外部 value 变化时自动同步
- * - 提供 save 方法，带乐观更新 + 失败回滚 + 卸载保护
- */
+const configSaveChains = new Map<string, Promise<unknown>>();
+
+export function enqueueConfigSave<T>(alias: string, task: () => Promise<T>): Promise<T> {
+    const prev = configSaveChains.get(alias) || Promise.resolve();
+    const next = prev.catch(() => undefined).then(task);
+    configSaveChains.set(
+        alias,
+        next.then(
+            () => undefined,
+            () => undefined,
+        ),
+    );
+    return next;
+}
+
+const ROW_H = '2.25rem';
+const SINGLE_SEARCH_THRESHOLD = 30;
+
 function useConfigState<T>(
     alias: string,
     key: string,
     propValue: T,
-    transform?: (val: T) => ConfigValue
+    transform?: (val: T) => ConfigValue,
 ) {
     const [state, setState] = useState<T>(propValue);
     const mountedRef = useRef(true);
@@ -47,7 +70,7 @@ function useConfigState<T>(
         setState(newValue);
         const payload = transform ? transform(newValue) : (newValue as ConfigValue);
         try {
-            const res = await putAccountConfig(alias, key, payload);
+            const res = await enqueueConfigSave(alias, () => putAccountConfig(alias, key, payload));
             if (mountedRef.current) {
                 toaster.create({ type: 'success', title: '保存成功', description: res });
             }
@@ -58,7 +81,7 @@ function useConfigState<T>(
                 toaster.create({
                     type: 'error',
                     title: '保存失败',
-                    description: axiosErr.response?.data as string || '网络错误',
+                    description: (axiosErr.response?.data as string) || '网络错误',
                 });
             }
         }
@@ -67,35 +90,34 @@ function useConfigState<T>(
     return [state, setState, save] as const;
 }
 
-// ---------- ConfigBool ----------
 function ConfigBool({ alias, value, info }: ConfigProps) {
     const [checked, , save] = useConfigState(alias, info.key, value as boolean);
 
     return (
         <InputGroup
+            w="full"
+            minH={ROW_H}
+            alignItems="center"
             startElement={info.desc}
             endElement={
                 <Switch
                     id={info.key}
+                    size="md"
                     checked={checked}
-                    onCheckedChange={(d) => save(d.checked)}
+                    onCheckedChange={(d) => save(!!d.checked)}
                 />
             }
         />
     );
 }
 
-// ---------- ConfigInt（改为 onBlur 保存）----------
 function ConfigInt({ alias, value, info }: ConfigProps) {
     const min = Math.min(...(info.candidates.map((c) => c.value) as number[]));
     const max = Math.max(...(info.candidates.map((c) => c.value) as number[]));
 
-    // 受控的字符串显示值
     const [numStr, setNumStr] = useState(String(value));
-    //const [saving, setSaving] = useState(false); // 可选 loading 态
     const mountedRef = useRef(true);
 
-    // 外部 value 同步
     useEffect(() => {
         setNumStr(String(value));
     }, [value]);
@@ -107,25 +129,18 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
         };
     }, []);
 
-    // 处理失焦保存
     const handleBlur = () => {
-        let finalValue: string | number;
-
-        // 空值或无效值处理为最小值
+        let finalValue: number;
         if (numStr === '' || isNaN(Number(numStr))) {
             finalValue = min;
-            setNumStr(String(min)); // UI 也回显最小值
         } else {
             finalValue = Number(numStr);
         }
-
-        // 边界检查（可选，但保留原有行为）
         if (finalValue < min) finalValue = min;
         if (finalValue > max) finalValue = max;
+        setNumStr(String(finalValue));
 
-        // 发送保存
-        const payload: ConfigValue = finalValue as ConfigValue;
-        putAccountConfig(alias, info.key, payload)
+        enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, finalValue as ConfigValue))
             .then((res) => {
                 if (mountedRef.current) {
                     toaster.create({ type: 'success', title: '保存成功', description: res });
@@ -133,53 +148,158 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
             })
             .catch((err: AxiosError) => {
                 if (mountedRef.current) {
-                    // 失败回滚到外部 value
                     setNumStr(String(value));
                     toaster.create({
                         type: 'error',
                         title: '保存失败',
-                        description: err.response?.data as string || '网络错误',
+                        description: (err.response?.data as string) || '网络错误',
                     });
                 }
             });
     };
 
-    // 输入过程中仅更新本地状态
-    const handleChange = (e: { value: string }) => {
-        setNumStr(e.value);
-    };
-
     return (
-        <InputGroup startElement={info.desc}>
-            <NumberInput
-                value={numStr}
-                onValueChange={handleChange}
-                id={info.key}
-                min={min}
-                max={max}
+        <InputGroup w="full" minH={ROW_H} alignItems="center" startElement={info.desc}>
+            <Box
+                w="18%"
+                h={ROW_H}
+                maxH={ROW_H}
+                display="flex"
+                alignItems="center"
+                css={{
+                    '& [data-part="root"]': {
+                        height: ROW_H,
+                        maxHeight: ROW_H,
+                        width: '100%',
+                    },
+                    '& [data-part="input"]': {
+                        height: ROW_H,
+                        minHeight: ROW_H,
+                        maxHeight: ROW_H,
+                        py: 0,
+                    },
+                    '& [data-part="control"]': {
+                        height: ROW_H,
+                        maxHeight: ROW_H,
+                        display: 'flex',
+                        flexDirection: 'column',
+                    },
+                    '& [data-part="increment-trigger"], & [data-part="decrement-trigger"]': {
+                        height: '1.125rem',
+                        minHeight: '1.125rem',
+                        maxHeight: '1.125rem',
+                        flex: 1,
+                    },
+                }}
             >
-                <NumberInputField onBlur={handleBlur} />
-            </NumberInput>
+                <NumberInput
+                    value={numStr}
+                    onValueChange={(e) => setNumStr(e.value)}
+                    id={info.key}
+                    min={min}
+                    max={max}
+                    size="sm"
+                    w="full"
+                    h={ROW_H}
+                    maxH={ROW_H}
+                >
+                    <NumberInputField h={ROW_H} minH={ROW_H} maxH={ROW_H} py={0} onBlur={handleBlur} />
+                </NumberInput>
+            </Box>
         </InputGroup>
     );
 }
 
-// ---------- ConfigSingle ----------
+function ConfigSingleSearch({ alias, value, info }: ConfigProps) {
+    const [localValue, setLocalValue] = useState<ConfigValue>(value);
+    const mountedRef = useRef(true);
+
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    const displayText = (() => {
+        const unit = info.candidates.find((u) => u.value === localValue);
+        if (!unit) {
+            return localValue === undefined || localValue === null || localValue === ''
+                ? ''
+                : String(localValue);
+        }
+        return unit.nickname ? unit.nickname : unit.display;
+    })();
+
+    const handleClick = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const previousValue = localValue;
+        try {
+            const ret = (await NiceModal.show(singleSelectModal, {
+                candidates: info.candidates,
+                value: localValue,
+            })) as ConfigValue | undefined;
+            if (ret === undefined) return;
+
+            const res = await enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, ret));
+            if (mountedRef.current) {
+                setLocalValue(ret);
+                toaster.create({ type: 'success', title: '保存成功', description: res });
+            }
+        } catch (err) {
+            const axiosErr = err as AxiosError;
+            if (mountedRef.current) {
+                setLocalValue(previousValue);
+                toaster.create({
+                    type: 'error',
+                    title: '保存失败',
+                    description: (axiosErr.response?.data as string) || '网络错误',
+                });
+            }
+        }
+    };
+
+    return (
+        <InputGroup
+            w="1/3"
+            minH={ROW_H}
+            alignItems="center"
+            startElement={info.desc}
+            endElement={
+                <Button size="sm" h={ROW_H} onClick={handleClick}>
+                    选择
+                </Button>
+            }
+        >
+            <Input h={ROW_H} value={displayText} readOnly onClick={handleClick} cursor="pointer" />
+        </InputGroup>
+    );
+}
+
 function ConfigSingle({ alias, value, info }: ConfigProps) {
+    if ((info.candidates?.length || 0) >= SINGLE_SEARCH_THRESHOLD) {
+        return <ConfigSingleSearch alias={alias} value={value} info={info} />;
+    }
+
     const [selectValue, , save] = useConfigState(alias, info.key, value as string | number);
 
     return (
-        <InputGroup startElement={info.desc}>
-            <NativeSelect.Root>
+        <InputGroup w="1/4" minH={ROW_H} alignItems="center" startElement={info.desc}>
+            <NativeSelect.Root size="sm" w="full" flex="1">
                 <NativeSelect.Field
+                    h={ROW_H}
+                    id={info.key}
+                    value={selectValue}
                     onChange={(e) => {
                         let newValue: ConfigValue = e.target.value;
                         const intVal = Number(newValue);
                         if (!isNaN(intVal)) newValue = intVal;
-                        save(newValue);
+                        void save(newValue);
                     }}
-                    id={info.key}
-                    value={selectValue}
                 >
                     {info.candidates.map((element) => (
                         <option
@@ -195,11 +315,11 @@ function ConfigSingle({ alias, value, info }: ConfigProps) {
     );
 }
 
-// ---------- ConfigMulti ----------
 function ConfigMulti({ alias, value, info }: ConfigProps) {
     const initialStrArr = useMemo(
         () => (value as (string | number)[]).map(String),
-        [JSON.stringify(value)]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [JSON.stringify(value)],
     );
 
     const [groupValue, setGroupValue] = useState(initialStrArr);
@@ -211,7 +331,9 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
 
     useEffect(() => {
         mountedRef.current = true;
-        return () => { mountedRef.current = false; };
+        return () => {
+            mountedRef.current = false;
+        };
     }, []);
 
     const handleSave = (newStrArr: string[]) => {
@@ -220,10 +342,11 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
         if (intArr.length > 0 && !isNaN(intArr[0])) postValue = intArr;
 
         setGroupValue(newStrArr);
-        putAccountConfig(alias, info.key, postValue)
+        enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, postValue))
             .then((res) => {
-                if (mountedRef.current)
+                if (mountedRef.current) {
                     toaster.create({ type: 'success', title: '保存成功', description: res });
+                }
             })
             .catch((err: AxiosError) => {
                 if (mountedRef.current) {
@@ -231,73 +354,79 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
                     toaster.create({
                         type: 'error',
                         title: '保存失败',
-                        description: err.response?.data as string || '网络错误',
+                        description: (err.response?.data as string) || '网络错误',
                     });
                 }
             });
     };
 
-    const onCheckboxChange = (param: string[] | { value: string[] }) => {
-        const newValue = Array.isArray(param) ? param : param.value;
-        handleSave(newValue);
-    };
-
     return (
-        <InputGroup startElement={info.desc}>
-            <Box
-                paddingLeft="16px"
-                paddingRight="32px"
-                overflowY="scroll"
-                borderWidth="1px"
-                borderColor="border.subtle"
-                borderRadius="md"
+        <InputGroup w="full" minH={ROW_H} alignItems="center" startElement={info.desc}>
+            <ChakraCheckbox.Group
+                value={groupValue}
                 w="full"
+                px={2}
+                onValueChange={(param: string[] | { value: string[] }) => {
+                    const newValue = Array.isArray(param) ? param : param.value;
+                    handleSave(newValue);
+                }}
             >
-                <ChakraCheckbox.Group onValueChange={onCheckboxChange} value={groupValue}>
-                    <Stack gap={[1, 5]} direction={['column', 'row']}>
-                        {info.candidates.map((element) => (
-                            <Checkbox
-                                key={element.value as string | number}
-                                value={String(element.value)}
-                            >
-                                {element.display}
-                            </Checkbox>
-                        ))}
-                    </Stack>
-                </ChakraCheckbox.Group>
-            </Box>
+                <Flex flexWrap="wrap" gap={3} align="center" w="full" py={1}>
+                    {info.candidates.map((element) => (
+                        <Checkbox
+                            key={element.value as string | number}
+                            value={String(element.value)}
+                        >
+                            {element.display}
+                        </Checkbox>
+                    ))}
+                </Flex>
+            </ChakraCheckbox.Group>
         </InputGroup>
     );
 }
 
-// ---------- ConfigTime ----------
 function ConfigTime({ alias, value, info }: ConfigProps) {
     const [timeStr, setTimeStr] = useState(value as string);
+    const mountedRef = useRef(true);
 
     useEffect(() => {
         setTimeStr(value as string);
     }, [value]);
 
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
         const newValue = e.target.value;
-        putAccountConfig(alias, info.key, newValue as ConfigValue)
+        enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, newValue as ConfigValue))
             .then((res) => {
-                toaster.create({ type: 'success', title: '保存成功', description: res });
+                if (mountedRef.current) {
+                    toaster.create({ type: 'success', title: '保存成功', description: res });
+                }
             })
             .catch((err: AxiosError) => {
-                setTimeStr(value as string);
-                toaster.create({
-                    type: 'error',
-                    title: '保存失败',
-                    description: err.response?.data as string || '网络错误',
-                });
+                if (mountedRef.current) {
+                    setTimeStr(value as string);
+                    toaster.create({
+                        type: 'error',
+                        title: '保存失败',
+                        description: (err.response?.data as string) || '网络错误',
+                    });
+                }
             });
     };
 
     return (
-        <InputGroup startElement={info.desc}>
+        <InputGroup w="min" minH={ROW_H} alignItems="center" startElement={info.desc}>
             <Input
                 type="time"
+                h={ROW_H}
+                size="sm"
                 value={timeStr}
                 onChange={(e) => setTimeStr(e.target.value)}
                 onBlur={handleBlur}
@@ -307,14 +436,21 @@ function ConfigTime({ alias, value, info }: ConfigProps) {
     );
 }
 
-// ---------- ConfigText ----------
 function ConfigText({ alias, value, info }: ConfigProps) {
     const [textStr, setTextStr] = useState(value as string);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const mountedRef = useRef(true);
 
     useEffect(() => {
         setTextStr(value as string);
     }, [value]);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     useLayoutEffect(() => {
         const el = textareaRef.current;
@@ -326,35 +462,41 @@ function ConfigText({ alias, value, info }: ConfigProps) {
 
     const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value;
-        putAccountConfig(alias, info.key, newValue as ConfigValue)
+        enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, newValue as ConfigValue))
             .then((res) => {
-                toaster.create({ type: 'success', title: '保存成功', description: res });
+                if (mountedRef.current) {
+                    toaster.create({ type: 'success', title: '保存成功', description: res });
+                }
             })
             .catch((err: AxiosError) => {
-                setTextStr(value as string);
-                toaster.create({
-                    type: 'error',
-                    title: '保存失败',
-                    description: err.response?.data as string || '网络错误',
-                });
+                if (mountedRef.current) {
+                    setTextStr(value as string);
+                    toaster.create({
+                        type: 'error',
+                        title: '保存失败',
+                        description: (err.response?.data as string) || '网络错误',
+                    });
+                }
             });
     };
 
     return (
-        <>
-            <Text>{info.desc}</Text>
+        <Stack gap={1} w="full">
+            <Text fontSize="sm" color="fg.muted">
+                {info.desc}
+            </Text>
             <Textarea
                 ref={textareaRef}
                 value={textStr}
                 onChange={(e) => setTextStr(e.target.value)}
                 onBlur={handleBlur}
                 id={info.key}
+                minH={ROW_H}
             />
-        </>
+        </Stack>
     );
 }
 
-// ---------- ConfigMultiSearch ----------
 function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
     const [localValue, setLocalValue] = useState<ConfigValue>(value);
     const mountedRef = useRef(true);
@@ -365,11 +507,13 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
 
     useEffect(() => {
         mountedRef.current = true;
-        return () => { mountedRef.current = false; };
+        return () => {
+            mountedRef.current = false;
+        };
     }, []);
 
     const displayValue = ((localValue || []) as number[]).map((id) => {
-        const unit = info.candidates.find((unit) => unit.value === id);
+        const unit = info.candidates.find((u) => u.value === id);
         return unit ? (unit.nickname ? unit.nickname : unit.display) : String(id);
     });
 
@@ -383,7 +527,7 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
             })) as ConfigValue;
             if (ret === undefined) return;
 
-            const res = await putAccountConfig(alias, info.key, ret);
+            const res = await enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, ret));
             if (mountedRef.current) {
                 setLocalValue(ret);
                 toaster.create({ type: 'success', title: '保存成功', description: res });
@@ -396,7 +540,7 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
                 toaster.create({
                     type: 'error',
                     title: '保存失败',
-                    description: axiosErr.response?.data as string || '网络错误',
+                    description: (axiosErr.response?.data as string) || '网络错误',
                 });
             }
         }
@@ -404,19 +548,27 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
 
     return (
         <InputGroup
+            w="1/3"
+            minH={ROW_H}
+            alignItems="center"
             startElement={info.desc}
             endElement={
-                <Button size="sm" onClick={handleClick}>
+                <Button size="sm" h={ROW_H} onClick={handleClick}>
                     选择
                 </Button>
             }
         >
-            <Input value={displayValue.join(', ')} readOnly onClick={handleClick} cursor="pointer" />
+            <Input
+                h={ROW_H}
+                value={displayValue.join(', ')}
+                readOnly
+                onClick={handleClick}
+                cursor="pointer"
+            />
         </InputGroup>
     );
 }
 
-// ---------- 主组件 ----------
 export default function Config({ alias, value, info }: ConfigProps) {
     switch (info?.config_type) {
         case 'bool':

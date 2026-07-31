@@ -33,7 +33,6 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
 
     useEffect(() => {
         let isMounted = true;
-        setState({ config: null, isLoading: true });
 
         if (alias && key) {
             getAccountConfig(alias, key)
@@ -109,7 +108,6 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
         <>
             <Box pb={20} position="relative">
                 <Stack gap={4}>
-                    {/* 首次加载未获取到数据时：只显示灰色骨架块，避免任何白屏 */}
                     {state.isLoading && !config ? (
                         Array.from({ length: 4 }).map((_, i) => (
                             <Box key={i} p={6} borderWidth="1px" borderRadius="2xl" bg="bg.panel" shadow="sm">
@@ -155,7 +153,7 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
                 zIndex={100}
             >
                 <Popover.Root lazyMount positioning={{ placement: 'left', gutter: 4 }}>
-                    <Popover.Trigger>
+                    <Popover.Trigger asChild>
                         <IconButton
                             aria-label="TOC"
                             colorPalette="blue"

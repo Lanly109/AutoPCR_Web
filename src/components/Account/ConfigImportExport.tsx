@@ -13,7 +13,7 @@ import {getAccountConfig, putAccountConfigs} from "@api/Account.ts";
 import {AreaInfo} from "@interfaces/Account.ts";
 import {AxiosError} from "axios";
 import {saveAs} from "file-saver";
-import { toaster } from "../../components/ui/toaster";
+import { toaster } from "@components/ui/toaster";
 
 interface ConfigIOProps {
     alias: string;
@@ -54,7 +54,10 @@ const ConfigImportExport = ({ alias, areas, onImportSuccess }: ConfigIOProps) =>
             
             const strCfg = btoa(encodeURIComponent(JSON.stringify(allConfig)));
             const blob = new Blob([strCfg], { type: 'text/plain;charset=utf-8' });
-            saveAs(blob, `autopcr_${alias}.autopcrcfg`);
+            const storedName = localStorage.getItem(`autopcr_displayName_${alias}`);
+            const rawName = (storedName && storedName.trim()) ? storedName.trim() : alias;
+            const safeName = rawName.replace(/[\\/:*?"<>|]/g, '_');
+            saveAs(blob, `autopcr_${safeName}.autopcrcfg`);
             toaster.create({ type: "success", title: "配置导出成功", description: "配置文件下载可能会有延迟，请稍后..." });
         }).catch((err: Error) => {
             toaster.create({ type: 'error', title: '配置保存失败', description: err.message });
@@ -66,8 +69,10 @@ const ConfigImportExport = ({ alias, areas, onImportSuccess }: ConfigIOProps) =>
     const toCheckedConfigItem = (type: ConfigType, candidates: Candidate[], value: unknown): ConfigValue | undefined => {
         switch (type) {
             case 'bool':
+                if (typeof value === "boolean") return value;
+                break;
             case 'single':
-                if (typeof value === "string" || typeof value === "number" || typeof value === "bool") return value;
+                if (typeof value === "string" || typeof value === "number") return value;
                 break
             case 'int':
                 if (typeof value === "number") return value;

@@ -1,0 +1,124 @@
+import { Box, Button, Input, Text } from '@chakra-ui/react';
+import { Candidate, ConfigValue } from '@interfaces/Module';
+import {
+    Modal,
+    ModalBody,
+    ModalCloseButton,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalOverlay,
+} from '../../components/ui/modal';
+import NiceModal, { useModal } from '@ebay/nice-modal-react';
+import { useMemo, useRef, useState } from 'react';
+
+interface SingleSelectModalProps {
+    candidates: Candidate[];
+    value: ConfigValue;
+}
+
+const singleSelectModal = NiceModal.create(({ candidates, value }: SingleSelectModalProps) => {
+    const modal = useModal();
+    const [selected, setSelected] = useState<ConfigValue>(value);
+    const [searchText, setSearchText] = useState('');
+    const lastVisibleRef = useRef(false);
+
+    if (modal.visible && !lastVisibleRef.current) {
+        setSelected(value);
+        setSearchText('');
+    }
+    lastVisibleRef.current = modal.visible;
+
+    const filtered = useMemo(() => {
+        const q = searchText.trim().toLowerCase();
+        if (!q) return candidates;
+        return candidates.filter((u) => {
+            const display = String(u.display ?? '').toLowerCase();
+            const nick = String(u.nickname ?? '').toLowerCase();
+            const val = String(u.value ?? '').toLowerCase();
+            const tags = (u.tags || []).some((t) => String(t).toLowerCase().includes(q));
+            return display.includes(q) || nick.includes(q) || val.includes(q) || tags;
+        });
+    }, [candidates, searchText]);
+
+    const handleSave = () => {
+        modal.resolve(selected);
+        void modal.hide();
+    };
+
+    const handleClose = () => {
+        modal.resolve(undefined);
+        void modal.hide();
+    };
+
+    return (
+        <Modal isOpen={modal.visible} onClose={handleClose} size="lg">
+            <ModalOverlay />
+            <ModalContent>
+                <ModalHeader>选择</ModalHeader>
+                <ModalCloseButton />
+                <ModalBody>
+                    <Input
+                        placeholder="搜索名称 / 昵称"
+                        mb={3}
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        autoFocus
+                    />
+                    <Box
+                        maxH="55vh"
+                        overflowY="auto"
+                        p={2}
+                        borderRadius="md"
+                        borderWidth="1px"
+                        borderColor="border"
+                        bg="bg.panel"
+                    >
+                        {filtered.map((u) => {
+                            const active = u.value === selected;
+                            return (
+                                <Box
+                                    key={String(u.value)}
+                                    p={2}
+                                    mb={1}
+                                    borderRadius="md"
+                                    cursor="pointer"
+                                    bg={active ? 'blue.subtle' : undefined}
+                                    fontWeight={active ? 'semibold' : 'normal'}
+                                    _hover={{ bg: active ? 'blue.subtle' : 'bg.subtle' }}
+                                    onClick={() => setSelected(u.value)}
+                                    onDoubleClick={() => {
+                                        setSelected(u.value);
+                                        modal.resolve(u.value);
+                                        void modal.hide();
+                                    }}
+                                >
+                                    {u.nickname ? u.nickname : u.display}
+                                </Box>
+                            );
+                        })}
+                        {filtered.length === 0 && (
+                            <Text color="fg.muted" fontSize="sm" py={4} textAlign="center">
+                                无匹配项
+                            </Text>
+                        )}
+                    </Box>
+                    <Text mt={2} fontSize="xs" color="fg.muted">
+                        单击选中，双击直接确认；保存后写入仍为单个值（兼容后端 single / unitchoice）
+                    </Text>
+                </ModalBody>
+                <ModalFooter>
+                    <Button onClick={handleSave} colorPalette="blue" mr={3}>
+                        保存
+                    </Button>
+                    <Button variant="ghost" onClick={handleClose}>
+                        取消
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Modal>
+    );
+});
+
+NiceModal.register('singleSelectModal', singleSelectModal);
+export default singleSelectModal;
