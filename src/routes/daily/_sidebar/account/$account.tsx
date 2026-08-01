@@ -3,12 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { FiActivity, FiCheck, FiStar, FiTarget, FiUserX } from 'react-icons/fi';
 
 import { AccountResponse } from '@interfaces/Account';
-import Area from '@components/Account/Area';
+import Area, { clearAreaConfigCache } from '@components/Account/Area';
 import ConfigImportExport from '@components/Account/ConfigImportExport.tsx';
 import Info from '@components/Account/Info';
 import { createFileRoute } from '@tanstack/react-router';
 import { getAccount, postAccountAreaDaily } from '@api/Account';
-import { toaster } from '@components/ui/toaster';
+import { toaster } from '../../../../components/ui/toaster';
 
 export const Route = createFileRoute('/daily/_sidebar/account/$account')({
     component: AccountComponent,
@@ -69,12 +69,26 @@ function AccountComponent() {
         }
     };
 
+    // 导入配置成功：账号基础信息刷新 + 丢掉旧区服配置缓存（下次进区服拉新配置）
+    const handleImportSuccess = async () => {
+        clearAreaConfigCache(accountInfo?.alias || account);
+        await refreshAccountData();
+    };
+
     useEffect(() => {
         setActiveTab(initialTab);
         setDisplayName(localStorage.getItem(`autopcr_displayName_${account}`) || account);
         const st = (initialAccountInfo as any)?.daily_clean_time?.status;
         if (st) setCleanStatus(st);
     }, [initialAccountInfo, initialTab, account]);
+
+    // 离开本账号详情（回一览 / 换账号）时清缓存，把内存还回去
+    useEffect(() => {
+        const alias = account;
+        return () => {
+            clearAreaConfigCache(alias);
+        };
+    }, [account]);
 
     const currentArea =
         activeTab !== '0' && accountInfo?.area
@@ -131,8 +145,6 @@ function AccountComponent() {
     return (
         <Tabs.Root
             lazyMount
-            // Area tabs contain many form controls. Keeping every visited panel mounted
-            // makes each later tab change reconcile an ever-growing hidden component tree.
             unmountOnExit
             variant="plain"
             value={activeTab}
@@ -231,7 +243,7 @@ function AccountComponent() {
                     <ConfigImportExport
                         alias={accountInfo?.alias}
                         areas={accountInfo?.area}
-                        onImportSuccess={refreshAccountData}
+                        onImportSuccess={handleImportSuccess}
                     />
                 </Tabs.Content>
 
