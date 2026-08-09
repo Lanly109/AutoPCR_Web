@@ -28,7 +28,6 @@ function AccountComponent() {
     const [favOnlyMap, setFavOnlyMap] = useState<Record<string, boolean>>({});
     const [cleanLoading, setCleanLoading] = useState(false);
 
-    // 与一览一致：用清理结果的 status 驱动按钮旁徽章（不常驻死字）
     const [cleanStatus, setCleanStatus] = useState<string>(
         () => (initialAccountInfo as any)?.daily_clean_time?.status || '',
     );
@@ -69,20 +68,27 @@ function AccountComponent() {
         }
     };
 
-    // 导入配置成功：账号基础信息刷新 + 丢掉旧区服配置缓存（下次进区服拉新配置）
     const handleImportSuccess = async () => {
         clearAreaConfigCache(accountInfo?.alias || account);
         await refreshAccountData();
     };
 
+    // 仅切换账号时重置 Tab；刷新 accountInfo 不要把用户正在看的 Tab 打回初始
     useEffect(() => {
         setActiveTab(initialTab);
         setDisplayName(localStorage.getItem(`autopcr_displayName_${account}`) || account);
         const st = (initialAccountInfo as any)?.daily_clean_time?.status;
         if (st) setCleanStatus(st);
-    }, [initialAccountInfo, initialTab, account]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [account]);
 
-    // 离开本账号详情（回一览 / 换账号）时清缓存，把内存还回去
+    useEffect(() => {
+        setDisplayName(localStorage.getItem(`autopcr_displayName_${account}`) || account);
+        const st = (initialAccountInfo as any)?.daily_clean_time?.status;
+        if (st) setCleanStatus(st);
+    }, [initialAccountInfo, account]);
+
+    // 离开本账号详情时清缓存
     useEffect(() => {
         const alias = account;
         return () => {
@@ -107,12 +113,11 @@ function AccountComponent() {
             localStorage.getItem(`autopcr_displayName_${a}`) || displayName || a;
 
         setCleanLoading(true);
-        setCleanStatus(''); // 清理中先清掉旧徽章，结束后再按真实 status 显示
+        setCleanStatus('');
         toaster.create({ type: 'info', title: `开始为${nameForUi}清理日常...` });
 
         try {
             const res = await postAccountAreaDaily(a);
-            // 与一览相同数据源：daily_clean_time.status
             const st =
                 (res as any)?.daily_clean_time?.status ||
                 (res as any)?.status ||
@@ -122,7 +127,6 @@ function AccountComponent() {
             sessionStorage.setItem('autopcr_need_refresh_dashboard', '1');
             await refreshAccountData();
 
-            // toaster 只保留原来就能弹的那套，不另造文案体系
             if (st === '错误') {
                 toaster.create({ type: 'error', title: `${nameForUi}清日常结束` });
             } else if (st === '警告' || st === '中止') {
@@ -226,7 +230,6 @@ function AccountComponent() {
                         >
                             <FiTarget /> 立刻清理
                         </Button>
-                        {/* 与一览 statusMeta 一致：出现在清理按钮右边 */}
                         {statusMeta && (
                             <Tag.Root size="sm" colorPalette={statusMeta.color} variant="subtle">
                                 <Tag.StartElement>{statusMeta.icon}</Tag.StartElement>
