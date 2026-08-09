@@ -1,5 +1,5 @@
 import { Box, Flex, IconButton, Popover, Stack, useDisclosure } from '@chakra-ui/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FiCompass } from 'react-icons/fi';
 import Module from './Module';
@@ -7,6 +7,7 @@ import { ConfigValue, ModuleResponse } from '@interfaces/Module';
 import { Skeleton } from '../../components/ui/skeleton';
 import Toc from './Toc';
 import { getAccountConfig } from '@api/Account';
+import { toaster } from '../../components/ui/toaster';
 
 interface AreaProps {
     alias: string;
@@ -71,7 +72,6 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
         config: ModuleResponse | null;
         isLoading: boolean;
     }>(() => ({
-        // 有缓存：立刻有内容，不走骨架
         config: cached ?? null,
         isLoading: !cached,
     }));
@@ -82,10 +82,8 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
         let isMounted = true;
         if (!alias || !key) return;
 
-        // 已有缓存：只恢复 UI，不再请求（改过的设置已在 handleConfigUpdate 写回缓存）
         const hit = getCachedAreaConfig(alias, key);
         if (hit) {
-            // 收藏可能在别处改过，再合并一次 localStorage（极轻）
             const withFav = mergeFavIntoConfig(alias, key, hit);
             if (withFav !== hit) {
                 setCachedAreaConfig(alias, key, withFav);
@@ -109,6 +107,11 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
                 if (isMounted) {
                     console.error(err);
                     setState((prev) => ({ ...prev, isLoading: false }));
+                    toaster.create({
+                        type: 'error',
+                        title: '加载配置失败',
+                        description: '请检查网络后重新进入该区服',
+                    });
                 }
             });
 
@@ -117,20 +120,22 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
         };
     }, [alias, key]);
 
-    const handleConfigUpdate = (configKey: string, value: ConfigValue) => {
+    const handleConfigUpdate = useCallback((configKey: string, value: ConfigValue) => {
         setState((prev) => {
             if (!prev.config) return prev;
             const nextConfig: ModuleResponse = {
                 ...prev.config,
                 config: { ...prev.config.config, [configKey]: value },
             };
-            // 同步写缓存：切走再回来设置还在，无需重新拉
-            if (alias && key) {
-                setCachedAreaConfig(alias, key, nextConfig);
-            }
             return { ...prev, config: nextConfig };
         });
-    };
+    }, []);
+
+    // state.config 变化时同步到会话缓存（离开区服 UI 后仍能秒开且带最新改动）
+    useEffect(() => {
+        if (!alias || !key || !state.config) return;
+        setCachedAreaConfig(alias, key, state.config);
+    }, [alias, key, state.config]);
 
     const config = state.config;
 
