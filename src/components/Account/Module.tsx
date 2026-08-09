@@ -1,4 +1,5 @@
 import { Box, Button, Card, Flex, HStack, Heading, Separator, Stack, Tag, useDisclosure } from '@chakra-ui/react'
+import { useRef } from 'react'
 import { ConfigValue, ModuleInfo } from '@interfaces/Module';
 import { FiChevronDown, FiCopy, FiStar } from 'react-icons/fi';
 import { getAccountAreaSingleResultList, postAccountAreaSingle, putAccountConfig, getAccountConfig, putAccountConfigs } from '@api/Account';
@@ -6,7 +7,7 @@ import { getAccountAreaSingleResultList, postAccountAreaSingle, putAccountConfig
 import Alert from '../alert';
 import { AxiosError } from 'axios';
 import { Checkbox } from '../../components/ui/checkbox';
-import Config, { enqueueConfigSave } from './Config';
+import Config, { enqueueConfigSave, getErrorDescription } from './Config';
 import NiceModal from '@ebay/nice-modal-react';
 import ResultInfoModal from './ResultInfoModal';
 import ModuleSyncModal from './ModuleSyncModal';
@@ -51,22 +52,33 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         }
 
         favMap[areaKey] = Array.from(areaFavs);
-        localStorage.setItem(favKey, JSON.stringify(favMap));
+        try {
+            localStorage.setItem(favKey, JSON.stringify(favMap));
+        } catch {
+            toaster.create({ type: 'error', title: '收藏保存失败', description: '本地存储不可用或已满' });
+            return;
+        }
 
         onConfigUpdate?.(`_fav_${info.key}`, isNowFav);
     };
 
+    // 用 ref 记最新模块开关，快速连点失败回滚不取过期闭包
+    const moduleEnabledRef = useRef(config[info.key]);
+    moduleEnabledRef.current = config[info.key];
+
     const onCheckedChange = (details: { checked: boolean | "indeterminate" }) => {
         const isChecked = !!details.checked;
-        const previousValue = config[info.key];
+        const previousValue = moduleEnabledRef.current;
 
         onConfigUpdate?.(info.key, isChecked);
+        moduleEnabledRef.current = isChecked;
 
         enqueueConfigSave(alias, () => putAccountConfig(alias, info?.key, isChecked)).then((response) => {
             toaster.create({ type: 'success', title: '保存成功', description: response });
-        }).catch((err: AxiosError) => {
-            onConfigUpdate?.(info.key, previousValue);
-            toaster.create({ type: 'error', title: '保存失败', description: (err.response?.data as string) || '网络错误' });
+        }).catch(async (err: AxiosError) => {
+            onConfigUpdate?.(info.key, previousValue as ConfigValue);
+            moduleEnabledRef.current = previousValue;
+            toaster.create({ type: 'error', title: '保存失败', description: await getErrorDescription(err) });
         });
     };
 
@@ -75,10 +87,10 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         onOpen();
         postAccountAreaSingle(alias, info?.key).then(async (res) => {
             toaster.create({ type: 'success', title: '执行成功' });
-            onClose();
             await NiceModal.show(ResultInfoModal, { alias: alias, title: info?.name, resultInfo: res });
         }).catch(async (err: AxiosError) => {
-            toaster.create({ type: 'error', title: '执行失败', description: await (err.response?.data as Blob).text() || "网络错误" });
+            toaster.create({ type: 'error', title: '执行失败', description: await getErrorDescription(err) });
+        }).finally(() => {
             onClose();
         });
     }
@@ -88,11 +100,11 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         toaster.create({ type: 'info', title: `正在获取${info?.name}的结果` });
         onOpen();
         getAccountAreaSingleResultList(alias, info?.key).then(async (res) => {
-            onClose();
             await NiceModal.show(ResultInfoModal, { alias: alias, title: info?.name, resultInfo: res });
         }).catch(async (err: AxiosError) => {
+            toaster.create({ type: 'error', title: '获取结果失败', description: await getErrorDescription(err) });
+        }).finally(() => {
             onClose();
-            toaster.create({ type: 'error', title: '获取结果失败', description: await (err.response?.data as Blob).text() || "网络错误" });
         });
     }
 
@@ -113,8 +125,13 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         const targetAccounts = await NiceModal.show(ModuleSyncModal, { sourceAlias: alias, moduleName: info.name });
         if (!Array.isArray(targetAccounts) || targetAccounts.length === 0) return;
 
-        const normalizedTargets = targetAccounts.filter((item): item is string => typeof item === 'string');
-        if (normalizedTargets.length === 0) return;
+        const normalizedTargets = targetAccounts
+            .filter((item): item is string => typeof item === 'string')
+            .filter((item) => item !== alias);
+        if (normalizedTargets.length === 0) {
+            toaster.create({ type: 'warning', title: '没有可同步的目标账号' });
+            return;
+        }
 
         onOpen();
         try {
@@ -168,6 +185,15 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
         }
     }
 
+    const handleHeaderClick = () => {
+        // 折叠前先失焦，让 text/int/time 的 onBlur 先保存并回写父级
+        const ae = document.activeElement as HTMLElement | null;
+        if (ae && typeof ae.blur === 'function' && ae !== document.body) {
+            ae.blur();
+        }
+        window.setTimeout(() => onToggleExpand(), 0);
+    };
+
     return (
         <Card.Root
             colorPalette="brand"
@@ -180,17 +206,7 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
             _hover={{ shadow: 'md', borderColor: "blue.400" }}
             {...rest}
         >
-            <Card.Header
-                py={3}
-                cursor="pointer"
-                onClick={() => {
-                    // 折叠/展开前先让当前输入失焦，触发 Config 的 onBlur 保存，避免草稿被卸载丢掉
-                    const ae = document.activeElement as HTMLElement | null;
-                    if (ae && typeof ae.blur === 'function') ae.blur();
-                    // 等 blur 的同步 onChange/onBlur 入队后再切展开态
-                    window.setTimeout(() => onToggleExpand(), 0);
-                }}
-            >
+            <Card.Header py={3} cursor="pointer" onClick={handleHeaderClick}>
                 <Flex align="center" wrap="wrap" gap={2}>
                     <Box onClick={(e) => e.stopPropagation()} mr={{ base: 1, md: 1 }}>
                         <Checkbox
@@ -241,7 +257,7 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
                 </Flex>
             </Card.Header>
 
-            {/* 折叠时不挂 Config：条件渲染，兼容各版 Chakra */}
+            {/* 折叠卸载设置树省内存；Config 已回写 Area，再展开不会回到旧值 */}
             {isExpanded && (
                 <Card.Body pt={0} animation="fade-in 0.2s">
                     <Stack gap='1.5'>
@@ -257,7 +273,13 @@ export default function Module({ alias, areaKey, areaName, config, info, isOpen,
                                     <Heading size='sm' color="fg.subtle">设置项</Heading>
                                     {
                                         info?.config_order.map((key) => (
-                                            <Config key={key} alias={alias} value={config[key]} info={info.config[key]} />
+                                            <Config
+                                                key={key}
+                                                alias={alias}
+                                                value={config[key]}
+                                                info={info.config[key]}
+                                                onConfigUpdate={onConfigUpdate}
+                                            />
                                         ))
                                     }
                                 </Stack>
