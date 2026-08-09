@@ -38,6 +38,27 @@ import { useDisclosure } from '@chakra-ui/react';
 import ConfigSyncModal from './ConfigSyncModal';
 import type { Candidate, ConfigType, ConfigValue, ModuleResponse } from '@interfaces/Module';
 
+async function getErrorDescription(err: unknown, fallback = '网络错误'): Promise<string> {
+    const data = (err as { response?: { data?: unknown } })?.response?.data;
+    try {
+        if (data == null) {
+            if (err instanceof Error && err.message) return err.message;
+            return fallback;
+        }
+        if (typeof Blob !== 'undefined' && data instanceof Blob) {
+            const t = await data.text();
+            return t || fallback;
+        }
+        if (typeof data === 'string') return data || fallback;
+        if (typeof data === 'object') {
+            try { return JSON.stringify(data); } catch { return fallback; }
+        }
+        return String(data);
+    } catch {
+        return fallback;
+    }
+}
+
 const handle: Map<string, (arg0: boolean) => void> = new Map<string, (arg0: boolean) => void>();
 
 const DISPLAY_NAME_KEY = (alias: string) => `autopcr_displayName_${alias}`;
@@ -209,41 +230,43 @@ export function DashBoard() {
     };
 
     const handleCreateAccount = () => {
-        if (creatAccountSwitch.open) {
-            if (!alias || alias.trim() === '') {
+        if (!creatAccountSwitch.open) {
+            creatAccountSwitch.onOpen();
+            return;
+        }
+        if (!alias || alias.trim() === '') {
+            toaster.create({
+                type: 'warning',
+                title: '需输入名字，此次未创建',
+            });
+            creatAccountSwitch.onClose();
+            setAlias('');
+            return;
+        }
+
+        postAccount(alias)
+            .then((res) => {
+                toaster.create({
+                    type: 'success',
+                    title: '创建账号成功',
+                    description: res,
+                });
+                creatAccountSwitch.onClose();
+                setAlias('');
+                freshAccountInfo.onToggle();
+            })
+            .catch(async (err: AxiosError) => {
                 toaster.create({
                     type: 'error',
                     title: '创建账号失败',
-                    description: '账号昵称不能为空',
+                    description: await getErrorDescription(err),
                 });
-                return;
-            }
-
-            postAccount(alias)
-                .then((res) => {
-                    toaster.create({
-                        type: 'success',
-                        title: '创建账号成功',
-                        description: res,
-                    });
-                    creatAccountSwitch.onToggle();
-                    setAlias('');
-                    freshAccountInfo.onToggle();
-                })
-                .catch((err: AxiosError) => {
-                    toaster.create({
-                        type: 'error',
-                        title: '创建账号失败',
-                        description: (err?.response?.data as string) || '网络错误',
-                    });
-                });
-        } else {
-            creatAccountSwitch.onToggle();
-        }
+            });
     };
 
     const handleAccountImport = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
+        event.target.value = '';
         if (file) {
             postAccountImport(file)
                 .then((res) => {
@@ -480,9 +503,7 @@ export function DashBoard() {
                                     variant={creatAccountSwitch.open ? "solid" : "solid"}
                                     colorPalette={creatAccountSwitch.open ? "red" : "green"}
                                     onClick={() => {
-                                        if(creatAccountSwitch.open && !alias) creatAccountSwitch.onToggle();
-                                        else if (creatAccountSwitch.open && alias) handleCreateAccount();
-                                        else creatAccountSwitch.onToggle();
+                                        handleCreateAccount();
                                     }}
                                 >
                                     {creatAccountSwitch.open ? <FiCheck /> : <FiUserPlus />}
@@ -526,7 +547,7 @@ export function DashBoard() {
                     <Table.Root variant="outline" colorPalette="blue" size="sm" bg="bg.panel" borderRadius="xl" boxShadow="sm" ml="0" mr="auto">
                         <Table.Header position="sticky" top={0} bg="bg.subtle" zIndex={1} boxShadow="sm">
                             <Table.Row>
-                                <Table.ColumnHeader px={5} fontSize="md" py={4} fontWeight="bold" width="0%">
+                                <Table.ColumnHeader px={0} fontSize="md" py={4} fontWeight="bold" width="5%" textAlign="center">
                                     <Checkbox
                                         checked={
                                             (selectedAccounts.length > 0 && selectedAccounts.length < (userInfo?.accounts?.length ?? 0))
@@ -665,6 +686,7 @@ function AccountInfo({
     const [displayName, setDisplayName] = useState(() => getDisplayName(alias));
     const [nameDraft, setNameDraft] = useState(displayName);
     const composingRef = useRef(false);
+    const nameInputRef = useRef<HTMLInputElement>(null);
 
     const clean = account.daily_clean_time;
     const cleanStatus = clean?.status || '未知';
@@ -740,7 +762,7 @@ function AccountInfo({
     };
 
     const handleDailyResult = () => {
-        toaster.create({ type: 'info', title: `正在获取${displayName || alias}的日常结果...` });
+        toaster.create({ type: 'info', title: `正在获取${alias}的日常结果...` });
         getAccountDailyResultList(alias)
             .then(async (res) => {
                 toaster.create({ type: 'success', title: '获取日常结果成功' });
@@ -750,7 +772,7 @@ function AccountInfo({
                 toaster.create({
                     type: 'error',
                     title: '获取日常结果失败',
-                    description: (await (err?.response?.data as Blob).text()) || '网络错误',
+                    description: await getErrorDescription(err),
                 });
             });
     };
@@ -758,6 +780,15 @@ function AccountInfo({
     const goDetail = () => {
         void navigate({ to: `${DashBoardRoute.to || ''}${alias}` as any });
     };
+
+
+    useEffect(() => {
+        if (isEditingName) {
+            // autoFocus 只在挂载时生效；编辑态切换时手动 focus
+            const t = window.setTimeout(() => nameInputRef.current?.focus(), 0);
+            return () => window.clearTimeout(t);
+        }
+    }, [isEditingName]);
 
     const commitDisplayName = () => {
         const next = nameDraft.trim();
@@ -788,10 +819,10 @@ function AccountInfo({
     // 始终同一 Input：可编辑区域与名字位置重合
     const nameInput = (
         <Input
+            ref={nameInputRef}
             size="sm"
             value={isEditingName ? nameDraft : displayName}
             readOnly={!isEditingName}
-            autoFocus={isEditingName}
             variant={isEditingName ? 'outline' : 'flushed'}
             onClick={(e) => {
                 e.stopPropagation();
@@ -810,10 +841,25 @@ function AccountInfo({
             onCompositionEnd={(e) => {
                 composingRef.current = false;
                 setNameDraft((e.target as HTMLInputElement).value);
+                // 组词中途点到别处：compositionend 时可能已失焦，补一次提交，避免卡在编辑态
+                const el = e.target as HTMLInputElement;
+                window.setTimeout(() => {
+                    if (document.activeElement !== el) {
+                        commitDisplayName();
+                    }
+                }, 0);
             }}
             onBlur={() => {
                 if (!isEditingName) return;
-                if (composingRef.current) return;
+                if (composingRef.current) {
+                    // 组词中 blur：等 composition 结束后由上面的 timeout 处理；再兜底一次
+                    window.setTimeout(() => {
+                        if (!composingRef.current) {
+                            commitDisplayName();
+                        }
+                    }, 0);
+                    return;
+                }
                 commitDisplayName();
             }}
             onKeyDown={(e) => {
@@ -825,7 +871,7 @@ function AccountInfo({
                 }
             }}
             fontWeight="bold"
-            maxW="8em"
+            maxW="12em"
             minW="4em"
             h="2em"
             px={isEditingName ? 2 : 0}
@@ -1079,6 +1125,7 @@ function AccountInfo({
                         onClick={goDetail}
                         title="进入详细设置"
                     >
+                        {/* ✅ 补回内层 Flex 容器；曾用名 minW 保底，标签不挤占省略空间 */}
                         <Flex align="center" gap={1} minW={0} flex="1" lineHeight="1">
                             <Flex
                                 boxSize="2em"
@@ -1124,6 +1171,7 @@ function AccountInfo({
                                 </Text>
                             )}
 
+                            {/* 标签单独一组 flexShrink=0，避免反噬曾用名 */}
                             <Flex align="center" gap={1} flexShrink={0}>
                                 {defaultAccount === account.name && (
                                     <Tag.Root size="sm" p={0.5} colorPalette="purple" variant="solid" flexShrink={0}>
@@ -1144,11 +1192,12 @@ function AccountInfo({
                                 isOpen={deleteConfirm.open}
                                 onClose={deleteConfirm.onClose}
                                 title="删除账号"
-                                body={`确定删除账号${displayName || alias}吗？`}
+                                body={`确定删除账号${alias}吗？`}
                                 onConfirm={handleDeleteAccount}
                             >
                                 {' '}
                             </Alert>
+                            {/* 热区略小、叉图形略大 */}
                             <IconButton
                                 aria-label="Delete"
                                 size="xs"
@@ -1171,6 +1220,7 @@ function AccountInfo({
                     </Flex>
                 </Table.Cell>
 
+                {/* 表格状态列：保持可进详情（仅卡片状态区做安全点击区） */}
                 <Table.Cell
                     px={3}
                     py={3}
@@ -1217,102 +1267,88 @@ function AccountInfo({
             /* 不要在 Root 上挂 title：会继承到选框/删除/状态，悬停误提示「进入详细设置」 */
             _hover={{ shadow: 'lg', transform: 'translateY(-2px)', borderColor: 'blue.focusRing' }}
         >
-            <Card.Header px={4} pt={4} pb={3}>
-                <Flex justify="space-between" align="center" gap={1} minH="2.75em">
-                    <Flex align="center" gap={0} minW={0} flex="1">
+            {/* 整卡 onClick 进详情；Header/状态/按钮区内控件自行 stopPropagation */}
+            <Card.Header px={4} pt={3} pb={3} minH="2.75em" title="进入详细设置">
+                {/* 整 Header 随卡片进详情；仅选框/改名/删除 stopPropagation */}
+                <Flex align="center" gap={2} minH="2.25em">
+                    <Box
+                        onClick={(e) => e.stopPropagation()}
+                        flexShrink={0}
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        title="选择账号"
+                        cursor="default"
+                    >
+                        <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={onToggleSelect}
+                            colorPalette="blue"
+                            size="md"
+                            css={{
+                                '& [data-part=control], & .chakra-checkbox__control': {
+                                    borderRadius: '9999px',
+                                    width: '1.25rem',
+                                    height: '1.25rem',
+                                },
+                            }}
+                        />
+                    </Box>
+
+                    <Flex align="center" gap={2} minW={0} flex="1" overflow="hidden">
                         <Box
                             onClick={(e) => e.stopPropagation()}
-                            flexShrink={0}
                             display="flex"
                             alignItems="center"
-                            justifyContent="center"
-                            pl={0.5}
-                            pr={1}
-                            py={1}
-                            minW="2rem"
-                            minH="2rem"
-                            title="选择账号"
+                            lineHeight="1"
+                            fontSize="lg"
+                            flex="1 1 6em"
+                            minW="4em"
+                            maxW={displayName !== alias ? '52%' : '75%'}
+                            overflow="hidden"
+                            title=""
                             cursor="default"
                         >
-                            <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={onToggleSelect}
-                                colorPalette="blue"
-                                size="md"
-                                css={{
-                                    '& [data-part=control], & .chakra-checkbox__control': {
-                                        borderRadius: '9999px',
-                                        width: '1.25rem',
-                                        height: '1.25rem',
-                                    },
-                                }}
-                            />
+                            {nameInput}
                         </Box>
 
-                        <Flex align="center" gap={2} minW={0} flex="1" h="full" minH="2.75em">
-                            <Box
-                                onClick={(e) => e.stopPropagation()}
-                                display="flex"
-                                alignItems="center"
+                        {displayName !== alias && (
+                            <Text
+                                as="span"
+                                fontSize="xs"
+                                color="fg.muted"
+                                whiteSpace="nowrap"
+                                overflow="hidden"
+                                textOverflow="ellipsis"
+                                flex="1 1 4em"
+                                minW="3em"
+                                maxW="32%"
                                 lineHeight="1"
-                                fontSize="lg"
-                                minW={0}
-                                flexShrink={1}
-                                maxW={displayName !== alias ? '48%' : '70%'}
-                                title=""
+                                title={alias}
                             >
-                                {nameInput}
-                            </Box>
-                            {displayName !== alias && (
-                                <Text
-                                    as="span"
-                                    fontSize="xs"
-                                    color="fg.muted"
-                                    whiteSpace="nowrap"
-                                    overflow="hidden"
-                                    textOverflow="ellipsis"
-                                    flex="1 1 4.5em"
-                                    minW="1.5em"
-                                    maxW="35%"
-                                    lineHeight="1"
-                                    title={alias}
-                                >
-                                    {alias}
-                                </Text>
+                                {alias}
+                            </Text>
+                        )}
+
+                        <Flex align="center" gap={1} flexShrink={0} minW={0}>
+                            {defaultAccount === account.name && (
+                                <Tag.Root size="sm" p={0.5} colorPalette="purple" variant="solid" flexShrink={0}>
+                                    <Tag.Label fontSize="2xs" lineHeight="1" whiteSpace="nowrap">默认</Tag.Label>
+                                </Tag.Root>
                             )}
-                            <Flex align="center" gap={1} flexShrink={0}>
-                                {defaultAccount === account.name && (
-                                    <Tag.Root size="sm" p={0.5} colorPalette="purple" variant="solid" flexShrink={0}>
-                                        <Tag.Label fontSize="2xs" lineHeight="1">默认</Tag.Label>
-                                    </Tag.Root>
-                                )}
-                                {account.clan_forbid && (
-                                    <Tag.Root size="sm" p={0.5} colorPalette="red" variant="subtle" flexShrink={0}>
-                                        <Tag.Label fontSize="2xs" lineHeight="1">禁用</Tag.Label>
-                                    </Tag.Root>
-                                )}
-                            </Flex>
-                            {/* 空白热区：真正吃到 native title */}
-                            <Box
-                                flex="1"
-                                alignSelf="stretch"
-                                minW="12px"
-                                minH="100%"
-                                title="进入详细设置"
-                                cursor="pointer"
-                                aria-label="进入详细设置"
-                            />
+                            {account.clan_forbid && (
+                                <Tag.Root size="sm" p={0.5} colorPalette="red" variant="subtle" flexShrink={0}>
+                                    <Tag.Label fontSize="2xs" lineHeight="1" whiteSpace="nowrap">禁用</Tag.Label>
+                                </Tag.Root>
+                            )}
                         </Flex>
                     </Flex>
 
                     <Box
                         onClick={(e) => e.stopPropagation()}
                         flexShrink={0}
-                        pr={0.5}
                         title="删除账号"
                         cursor="default"
-                        display="flex"
-                        alignItems="center"
                     >
                         <Alert
                             leastDestructiveRef={cancelRef}
@@ -1331,16 +1367,23 @@ function AccountInfo({
                             aria-label="Delete"
                             title="删除账号"
                             minW="1.5rem"
-                            h="1.6rem"
+                            w="1.5rem"
+                            h="1.5rem"
                             p={0}
-                            fontSize="1.35rem"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 deleteConfirm.onOpen();
                             }}
                             _hover={{ bg: 'red.subtle', color: 'red.fg' }}
+                            css={{
+                                '& svg': {
+                                    width: '1.4em',
+                                    height: '1.4em',
+                                    strokeWidth: 2.5,
+                                },
+                            }}
                         >
-                            <FiX size={20} strokeWidth={2.5} />
+                            <FiX />
                         </IconButton>
                     </Box>
                 </Flex>
