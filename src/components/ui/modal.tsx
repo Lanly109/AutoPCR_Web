@@ -41,7 +41,7 @@ export const ModalHeader = React.forwardRef<HTMLDivElement, React.PropsWithChild
 export const ModalBody = Dialog.Body
 export const ModalFooter = Dialog.Footer
 export const ModalCloseButton = (props: any) => (
-    <Dialog.CloseTrigger position="absolute" top="2" insetEnd="2" {...props}>
+    <Dialog.CloseTrigger asChild position="absolute" top="2" insetEnd="2" {...props}>
         <CloseButton size="sm" />
     </Dialog.CloseTrigger>
 )
