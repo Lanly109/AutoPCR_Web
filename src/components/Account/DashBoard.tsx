@@ -14,7 +14,6 @@ import {
     Text,
 } from '@chakra-ui/react';
 import { FiActivity, FiBook, FiCheck, FiCopy, FiGrid, FiKey, FiLayers, FiList, FiStar, FiTarget, FiUpload, FiUserMinus, FiUserPlus, FiUserX, FiX } from 'react-icons/fi';
-import { Radio, RadioGroup } from '../../components/ui/radio';
 import React, { ChangeEvent, useMemo, useRef } from 'react';
 import { Skeleton, SkeletonText } from '../../components/ui/skeleton';
 import { clearAccounts, deleteAccount, getAccountDailyResultList, getUserInfo, putUserInfo } from '@api/Account';
@@ -38,6 +37,27 @@ import { useCountHook } from '../count';
 import { useDisclosure } from '@chakra-ui/react';
 import ConfigSyncModal from './ConfigSyncModal';
 import type { Candidate, ConfigType, ConfigValue, ModuleResponse } from '@interfaces/Module';
+
+async function getErrorDescription(err: unknown, fallback = '网络错误'): Promise<string> {
+    const data = (err as { response?: { data?: unknown } })?.response?.data;
+    try {
+        if (data == null) {
+            if (err instanceof Error && err.message) return err.message;
+            return fallback;
+        }
+        if (typeof Blob !== 'undefined' && data instanceof Blob) {
+            const t = await data.text();
+            return t || fallback;
+        }
+        if (typeof data === 'string') return data || fallback;
+        if (typeof data === 'object') {
+            try { return JSON.stringify(data); } catch { return fallback; }
+        }
+        return String(data);
+    } catch {
+        return fallback;
+    }
+}
 
 const handle: Map<string, (arg0: boolean) => void> = new Map<string, (arg0: boolean) => void>();
 
@@ -109,14 +129,35 @@ export function DashBoard() {
     }, [freshAccountInfo.open]);
 
     const handleDefaultAccount = (value: string) => {
+        // 后端 put_info 仅在非空时写入；清空依赖后端接受空串（见 README）
         putUserInfo({ default_account: value })
             .then((res) => {
-                setUserInfo({ ...userInfo, default_account: value });
-                toaster.create({ type: 'success', title: '设置默认账号成功', description: res });
+                setUserInfo((prev) => (prev ? { ...prev, default_account: value } : prev));
+                toaster.create({
+                    type: 'success',
+                    title: value ? '设置默认账号成功' : '已取消默认账号',
+                    description: res,
+                });
             })
             .catch((err: AxiosError) => {
-                toaster.create({ type: 'error', title: '设置默认账号失败', description: (err?.response?.data as string) || '网络错误' });
+                toaster.create({
+                    type: 'error',
+                    title: value ? '设置默认账号失败' : '取消默认账号失败',
+                    description: (err?.response?.data as string) || '网络错误',
+                });
             });
+    };
+
+    const singleSelected = selectedAccounts.length === 1 ? selectedAccounts[0] : '';
+    const singleIsDefault = !!singleSelected && userInfo?.default_account === singleSelected;
+
+    const handleToggleDefaultForSelected = () => {
+        if (!singleSelected) return;
+        if (singleIsDefault) {
+            handleDefaultAccount('');
+        } else {
+            handleDefaultAccount(singleSelected);
+        }
     };
 
     const handleResetPassword = () => {
@@ -158,7 +199,7 @@ export function DashBoard() {
     };
 
     const handleCleanDailyAll = () => {
-        if (isTableView && selectedAccounts.length > 0) {
+        if (selectedAccounts.length > 0) {
             for (const accountName of selectedAccounts) {
                 const fn = handle.get(accountName);
                 if (fn) fn(false);
@@ -189,41 +230,43 @@ export function DashBoard() {
     };
 
     const handleCreateAccount = () => {
-        if (creatAccountSwitch.open) {
-            if (!alias || alias.trim() === '') {
+        if (!creatAccountSwitch.open) {
+            creatAccountSwitch.onOpen();
+            return;
+        }
+        if (!alias || alias.trim() === '') {
+            toaster.create({
+                type: 'warning',
+                title: '需输入名字，此次未创建',
+            });
+            creatAccountSwitch.onClose();
+            setAlias('');
+            return;
+        }
+
+        postAccount(alias)
+            .then((res) => {
+                toaster.create({
+                    type: 'success',
+                    title: '创建账号成功',
+                    description: res,
+                });
+                creatAccountSwitch.onClose();
+                setAlias('');
+                freshAccountInfo.onToggle();
+            })
+            .catch(async (err: AxiosError) => {
                 toaster.create({
                     type: 'error',
                     title: '创建账号失败',
-                    description: '账号昵称不能为空',
+                    description: await getErrorDescription(err),
                 });
-                return;
-            }
-
-            postAccount(alias)
-                .then((res) => {
-                    toaster.create({
-                        type: 'success',
-                        title: '创建账号成功',
-                        description: res,
-                    });
-                    creatAccountSwitch.onToggle();
-                    setAlias('');
-                    freshAccountInfo.onToggle();
-                })
-                .catch((err: AxiosError) => {
-                    toaster.create({
-                        type: 'error',
-                        title: '创建账号失败',
-                        description: (err?.response?.data as string) || '网络错误',
-                    });
-                });
-        } else {
-            creatAccountSwitch.onToggle();
-        }
+            });
     };
 
     const handleAccountImport = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
+        event.target.value = '';
         if (file) {
             postAccountImport(file)
                 .then((res) => {
@@ -323,7 +366,7 @@ export function DashBoard() {
                         onClick={handleCleanDailyAll}
                         loading={count != 0}
                     >
-                        <FiTarget /> {isTableView && selectedAccounts.length > 0 ? `清选择(${selectedAccounts.length})` : '清理全部'}
+                        <FiTarget /> {selectedAccounts.length > 0 ? `清选择(${selectedAccounts.length})` : '清理全部'}
                     </Button>
                     <Button
                         as={Link}
@@ -372,27 +415,39 @@ export function DashBoard() {
                         </Tooltip>
                     </Box>
 
-                    {isTableView && selectedAccounts.length === 1 && (
+                    {singleSelected && (
                         <HStack gap={1} separator={<Box w="1px" h="15px" bg="border.subtle" />}>
-                             <Tooltip content={`将其他账号配置同步为 ${selectedAccounts[0]} 的配置`} openDelay={0} closeDelay={0}>
+                            <Tooltip content={`将其他账号配置同步为 ${singleSelected} 的配置`} openDelay={0} closeDelay={0}>
                                 <IconButton
                                     aria-label="Sync configuration"
                                     size="sm"
                                     variant="ghost"
                                     colorPalette="teal"
                                     onClick={() => {
-                                        NiceModal.show(ConfigSyncModal, { sourceAccount: selectedAccounts[0] });
+                                        NiceModal.show(ConfigSyncModal, { sourceAccount: singleSelected });
                                     }}
-                                > <FiCopy /> </IconButton>
+                                >
+                                    <FiCopy />
+                                </IconButton>
                             </Tooltip>
-                            <Tooltip content={`将 ${selectedAccounts[0]} 设为默认账号`}  openDelay={0} closeDelay={0}>
+                            <Tooltip
+                                content={
+                                    singleIsDefault
+                                        ? `取消 ${singleSelected} 的默认账号`
+                                        : `将 ${singleSelected} 设为默认账号`
+                                }
+                                openDelay={0}
+                                closeDelay={0}
+                            >
                                 <IconButton
-                                    aria-label="Set as default"
+                                    aria-label={singleIsDefault ? 'Unset default' : 'Set as default'}
                                     size="sm"
-                                    variant="ghost"
+                                    variant={singleIsDefault ? 'solid' : 'ghost'}
                                     colorPalette="purple"
-                                    onClick={() => handleDefaultAccount(selectedAccounts[0])}
-                                > <FiStar /> </IconButton>
+                                    onClick={handleToggleDefaultForSelected}
+                                >
+                                    <FiStar />
+                                </IconButton>
                             </Tooltip>
                         </HStack>
                     )}
@@ -417,14 +472,14 @@ export function DashBoard() {
                             display="none"
                         />
 
-                         <Tooltip content={isTableView && selectedAccounts.length > 0 ? `删除选中(${selectedAccounts.length})` : '删除全部'}  openDelay={0} closeDelay={0}>
+                         <Tooltip content={selectedAccounts.length > 0 ? `删除选中(${selectedAccounts.length})` : '删除全部'}  openDelay={0} closeDelay={0}>
                             <IconButton
                                 aria-label="Delete selected accounts"
                                 size="sm"
                                 variant="outline"
                                 colorPalette="red"
                                 onClick={() => {
-                                    if (isTableView && selectedAccounts.length > 0) {
+                                    if (selectedAccounts.length > 0) {
                                         if (window.confirm(`确定删除选中的 ${selectedAccounts.length} 个账号吗？`)) {
                                             Promise.all(selectedAccounts.map((name) => delAccount(name)))
                                                 .then(() => {
@@ -448,9 +503,7 @@ export function DashBoard() {
                                     variant={creatAccountSwitch.open ? "solid" : "solid"}
                                     colorPalette={creatAccountSwitch.open ? "red" : "green"}
                                     onClick={() => {
-                                        if(creatAccountSwitch.open && !alias) creatAccountSwitch.onToggle();
-                                        else if (creatAccountSwitch.open && alias) handleCreateAccount();
-                                        else creatAccountSwitch.onToggle();
+                                        handleCreateAccount();
                                     }}
                                 >
                                     {creatAccountSwitch.open ? <FiCheck /> : <FiUserPlus />}
@@ -494,7 +547,7 @@ export function DashBoard() {
                     <Table.Root variant="outline" colorPalette="blue" size="sm" bg="bg.panel" borderRadius="xl" boxShadow="sm" ml="0" mr="auto">
                         <Table.Header position="sticky" top={0} bg="bg.subtle" zIndex={1} boxShadow="sm">
                             <Table.Row>
-                                <Table.ColumnHeader px={3} fontSize="md" py={4} fontWeight="bold" width="5%">
+                                <Table.ColumnHeader px={0} fontSize="md" py={4} fontWeight="bold" width="5%" textAlign="center">
                                     <Checkbox
                                         checked={
                                             (selectedAccounts.length > 0 && selectedAccounts.length < (userInfo?.accounts?.length ?? 0))
@@ -503,6 +556,14 @@ export function DashBoard() {
                                         }
                                         onCheckedChange={toggleSelectAll}
                                         colorPalette="blue"
+                                        size="md"
+                                        css={{
+                                            '& [data-part=control], & .chakra-checkbox__control': {
+                                                borderRadius: '9999px',
+                                                width: '1.25rem',
+                                                height: '1.25rem',
+                                            },
+                                        }}
                                     />
                                 </Table.ColumnHeader>
                                 <Table.ColumnHeader px={0} fontSize="md" py={4} fontWeight="bold" width="25%" minWidth="80px">
@@ -550,41 +611,38 @@ export function DashBoard() {
                     </Table.Root>
                 </Box>
             ) : (
-                <RadioGroup onValueChange={(e) => handleDefaultAccount(e.value || "")} value={userInfo?.default_account} flex={1} overflow={'auto'} p={1}>
-                    <Stack>
-                        <SimpleGrid gap={4} templateColumns="repeat(auto-fill, minmax(280px, 1fr))">
-                            {!userInfo ? (
-                                Array.from({ length: 4 }).map((_, i) => (
-                                    <Card.Root key={i} bg="bg.panel" borderRadius="2xl" shadow="sm">
-                                        <Card.Header><Skeleton height="24px" width="50%" /></Card.Header>
-                                        <Card.Body><SkeletonText noOfLines={3} gap={4} /></Card.Body>
-                                        <Card.Footer><Skeleton height="32px" width="100%" /></Card.Footer>
-                                    </Card.Root>
-                                ))
-                            ) : (
-                                userInfo?.accounts?.map((account) => {
-                                    return (
-                                        <AccountInfo
-                                            key={account.name}
-                                            account={account}
-                                            onToggle={freshAccountInfo.onToggle}
-                                            increaseCount={increaseCount}
-                                            decreaseCount={decreaseCount}
-                                            updateAccountInfo={updateAccountInfo}
-                                            isTableView={isTableView}
-                                            isSelected={selectedAccounts.includes(account.name)}
-                                            onToggleSelect={() => toggleSelectAccount(account.name)}
-                                            getOccupiedNames={occupiedNamesFactory}
-                                            onOpenSyncConfig={(a) => {
-                                                NiceModal.show(ConfigSyncModal, { sourceAccount: a });
-                                            }}
-                                        />
-                                    );
-                                })
-                            )}
-                        </SimpleGrid>
-                    </Stack>
-                </RadioGroup>
+                <Box flex={1} overflow={'auto'} p={1}>
+                    <SimpleGrid gap={4} templateColumns="repeat(auto-fill, minmax(280px, 1fr))">
+                        {!userInfo ? (
+                            Array.from({ length: 4 }).map((_, i) => (
+                                <Card.Root key={i} bg="bg.panel" borderRadius="2xl" shadow="sm">
+                                    <Card.Header><Skeleton height="24px" width="50%" /></Card.Header>
+                                    <Card.Body><SkeletonText noOfLines={3} gap={4} /></Card.Body>
+                                    <Card.Footer><Skeleton height="32px" width="100%" /></Card.Footer>
+                                </Card.Root>
+                            ))
+                        ) : (
+                            userInfo?.accounts?.map((account) => (
+                                <AccountInfo
+                                    key={account.name}
+                                    account={account}
+                                    onToggle={freshAccountInfo.onToggle}
+                                    increaseCount={increaseCount}
+                                    decreaseCount={decreaseCount}
+                                    updateAccountInfo={updateAccountInfo}
+                                    isTableView={isTableView}
+                                    isSelected={selectedAccounts.includes(account.name)}
+                                    onToggleSelect={() => toggleSelectAccount(account.name)}
+                                    defaultAccount={userInfo?.default_account}
+                                    getOccupiedNames={occupiedNamesFactory}
+                                    onOpenSyncConfig={(a) => {
+                                        NiceModal.show(ConfigSyncModal, { sourceAccount: a });
+                                    }}
+                                />
+                            ))
+                        )}
+                    </SimpleGrid>
+                </Box>
             )}
         </Stack>
     );
@@ -628,6 +686,7 @@ function AccountInfo({
     const [displayName, setDisplayName] = useState(() => getDisplayName(alias));
     const [nameDraft, setNameDraft] = useState(displayName);
     const composingRef = useRef(false);
+    const nameInputRef = useRef<HTMLInputElement>(null);
 
     const clean = account.daily_clean_time;
     const cleanStatus = clean?.status || '未知';
@@ -678,7 +737,14 @@ function AccountInfo({
         }
     };
 
-    handle.set(account.name, handleCleanDaily);
+    // 批量清理用：只在 alias/显示名变化时注册，卸载时删掉
+    useEffect(() => {
+        handle.set(alias, handleCleanDaily as any);
+        return () => {
+            handle.delete(alias);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [alias, displayName]);
 
     const handleDeleteAccount = () => {
         delAccount(alias)
@@ -696,7 +762,7 @@ function AccountInfo({
     };
 
     const handleDailyResult = () => {
-        toaster.create({ type: 'info', title: `正在获取${displayName || alias}的日常结果...` });
+        toaster.create({ type: 'info', title: `正在获取${alias}的日常结果...` });
         getAccountDailyResultList(alias)
             .then(async (res) => {
                 toaster.create({ type: 'success', title: '获取日常结果成功' });
@@ -706,7 +772,7 @@ function AccountInfo({
                 toaster.create({
                     type: 'error',
                     title: '获取日常结果失败',
-                    description: (await (err?.response?.data as Blob).text()) || '网络错误',
+                    description: await getErrorDescription(err),
                 });
             });
     };
@@ -715,27 +781,18 @@ function AccountInfo({
         void navigate({ to: `${DashBoardRoute.to || ''}${alias}` as any });
     };
 
-    const nameInputRef = useRef<HTMLInputElement>(null);
-
-    const startEditName = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setNameDraft(displayName);
-        setIsEditingName(true);
-    };
 
     useEffect(() => {
-        if (!isEditingName) return;
-        const el = nameInputRef.current;
-        if (!el) return;
-        el.focus();
-        // 光标放到末尾，避免整段被选中
-        const len = el.value.length;
-        el.setSelectionRange(len, len);
+        if (isEditingName) {
+            // autoFocus 只在挂载时生效；编辑态切换时手动 focus
+            const t = window.setTimeout(() => nameInputRef.current?.focus(), 0);
+            return () => window.clearTimeout(t);
+        }
     }, [isEditingName]);
 
     const commitDisplayName = () => {
         const next = nameDraft.trim();
-        // 空或改回原始 alias → 清除自定义显示名
+        // 空名 / 等于真实 alias：恢复为 alias
         if (!next || next === alias) {
             localStorage.removeItem(DISPLAY_NAME_KEY(alias));
             setDisplayName(alias);
@@ -743,13 +800,8 @@ function AccountInfo({
             setIsEditingName(false);
             return;
         }
-        // 没改
-        if (next === displayName) {
-            setIsEditingName(false);
-            return;
-        }
         const occupied = getOccupiedNames(alias);
-        if (occupied.has(next)) {
+        if (occupied.has(next) && next !== displayName) {
             toaster.create({
                 type: 'error',
                 title: '显示名冲突',
@@ -764,17 +816,20 @@ function AccountInfo({
         setIsEditingName(false);
     };
 
-    // 始终同一 Input：展示/编辑同一位置，避免 Text→Input 错位
+    // 始终同一 Input：可编辑区域与名字位置重合
     const nameInput = (
         <Input
             ref={nameInputRef}
             size="sm"
             value={isEditingName ? nameDraft : displayName}
             readOnly={!isEditingName}
-            title={isEditingName ? undefined : '点击修改显示名称'}
+            variant={isEditingName ? 'outline' : 'flushed'}
             onClick={(e) => {
                 e.stopPropagation();
-                if (!isEditingName) startEditName(e);
+                if (!isEditingName) {
+                    setNameDraft(displayName);
+                    setIsEditingName(true);
+                }
             }}
             onChange={(e) => {
                 if (!isEditingName) return;
@@ -786,54 +841,46 @@ function AccountInfo({
             onCompositionEnd={(e) => {
                 composingRef.current = false;
                 setNameDraft((e.target as HTMLInputElement).value);
+                // 组词中途点到别处：compositionend 时可能已失焦，补一次提交，避免卡在编辑态
+                const el = e.target as HTMLInputElement;
+                window.setTimeout(() => {
+                    if (document.activeElement !== el) {
+                        commitDisplayName();
+                    }
+                }, 0);
             }}
             onBlur={() => {
                 if (!isEditingName) return;
-                if (composingRef.current) return;
+                if (composingRef.current) {
+                    // 组词中 blur：等 composition 结束后由上面的 timeout 处理；再兜底一次
+                    window.setTimeout(() => {
+                        if (!composingRef.current) {
+                            commitDisplayName();
+                        }
+                    }, 0);
+                    return;
+                }
                 commitDisplayName();
             }}
             onKeyDown={(e) => {
-                if (!isEditingName) return;
-                if (composingRef.current) return;
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    (e.target as HTMLInputElement).blur();
-                }
+                if (!isEditingName || composingRef.current) return;
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                 if (e.key === 'Escape') {
-                    e.preventDefault();
                     setNameDraft(displayName);
                     setIsEditingName(false);
                 }
             }}
             fontWeight="bold"
-            fontSize="inherit"
-            lineHeight="1.25"
-            h="2rem"
-            minH="2rem"
-            minW="4.5em"
-            w="auto"
-            maxW="14em"
-            px={2}
-            py={0}
-            borderRadius="md"
-            borderWidth="1px"
-            borderColor={isEditingName ? 'blue.focusRing' : 'transparent'}
-            bg={isEditingName ? 'bg.panel' : 'transparent'}
-            boxShadow="none"
-            cursor={isEditingName ? 'text' : 'text'}
-            _hover={
-                isEditingName
-                    ? undefined
-                    : { bg: 'bg.subtle', borderColor: 'border.subtle' }
-            }
-            _focusVisible={{
-                borderColor: 'blue.focusRing',
-                boxShadow: 'none',
-            }}
-            css={{
-                // 取消部分浏览器只读态发灰
-                '&:read-only': { opacity: 1, cursor: 'text' },
-            }}
+            maxW="12em"
+            minW="4em"
+            h="2em"
+            px={isEditingName ? 2 : 0}
+            lineHeight="1"
+            cursor="text"
+            title={isEditingName ? undefined : '点击修改显示名称'}
+            _hover={!isEditingName ? { color: 'blue.fg' } : undefined}
+            borderColor={isEditingName ? undefined : 'transparent'}
+            boxShadow={isEditingName ? undefined : 'none'}
         />
     );
 
@@ -969,7 +1016,11 @@ function AccountInfo({
         }
     };
 
-    const renderActionButtons = (size: 'xs' | 'sm' | 'md' = 'xs', flexMode = false) => (
+    // 函数渲染，不要内嵌组件（否则每帧新类型，按钮整卸整挂）
+    const renderActionButtons = (
+        size: 'xs' | 'sm' | 'md' = 'xs',
+        flexMode = false,
+    ) => (
         <HStack
             gap={flexMode ? 0 : 1}
             w={flexMode ? 'full' : undefined}
@@ -1043,16 +1094,23 @@ function AccountInfo({
         </HStack>
     );
 
-
     if (isTableView) {
         return (
             <Table.Row key={alias} bg="bg.panel" _hover={{ bg: 'bg.muted' }}>
-                <Table.Cell px={3} py={3} width="50px" onClick={(e) => e.stopPropagation()}>
-                    <Flex align="center" minH="2.5em">
+                <Table.Cell px={2} py={3} width="56px" onClick={(e) => e.stopPropagation()}>
+                    <Flex align="center" justify="center" minH="2.75em" px={1} py={1}>
                         <Checkbox
                             checked={isSelected}
                             onCheckedChange={onToggleSelect}
                             colorPalette="blue"
+                            size="md"
+                            css={{
+                                '& [data-part=control], & .chakra-checkbox__control': {
+                                    borderRadius: '9999px',
+                                    width: '1.25rem',
+                                    height: '1.25rem',
+                                },
+                            }}
                         />
                     </Flex>
                 </Table.Cell>
@@ -1067,7 +1125,7 @@ function AccountInfo({
                         onClick={goDetail}
                         title="进入详细设置"
                     >
-                        {/* ✅ 补回内层 Flex 容器 */}
+                        {/* ✅ 补回内层 Flex 容器；曾用名 minW 保底，标签不挤占省略空间 */}
                         <Flex align="center" gap={1} minW={0} flex="1" lineHeight="1">
                             <Flex
                                 boxSize="2em"
@@ -1087,10 +1145,11 @@ function AccountInfo({
                                 onClick={(e) => e.stopPropagation()}
                                 display="flex"
                                 alignItems="center"
-                                h="2rem"
+                                lineHeight="1"
                                 fontSize="sm"
-                                flex="0 1 auto"
+                                flexShrink={1}
                                 minW={0}
+                                maxW={displayName !== alias ? '42%' : '70%'}
                             >
                                 {nameInput}
                             </Box>
@@ -1100,22 +1159,31 @@ function AccountInfo({
                                     as="span"
                                     fontSize="xs"
                                     color="fg.muted"
-                                                    whiteSpace="nowrap"
-                    lineHeight="1"
+                                    whiteSpace="nowrap"
+                                    lineHeight="1"
+                                    flex="1 1 4.5em"
+                                    minW="4.5em"
+                                    overflow="hidden"
+                                    textOverflow="ellipsis"
+                                    title={alias}
                                 >
                                     {alias}
                                 </Text>
                             )}
-                            {defaultAccount === account.name && (
-                                <Tag.Root size="sm" colorPalette="purple" variant="solid" flexShrink={0}>
-                                    <Tag.Label>默认</Tag.Label>
-                                </Tag.Root>
-                            )}
-                            {account.clan_forbid && (
-                                <Tag.Root size="sm" colorPalette="red" variant="solid" flexShrink={0}>
-                                    <Tag.Label>公会战禁用</Tag.Label>
-                                </Tag.Root>
-                            )}
+
+                            {/* 标签单独一组 flexShrink=0，避免反噬曾用名 */}
+                            <Flex align="center" gap={1} flexShrink={0}>
+                                {defaultAccount === account.name && (
+                                    <Tag.Root size="sm" p={0.5} colorPalette="purple" variant="solid" flexShrink={0}>
+                                        <Tag.Label fontSize="2xs" lineHeight="1">默认</Tag.Label>
+                                    </Tag.Root>
+                                )}
+                                {account.clan_forbid && (
+                                    <Tag.Root size="sm" colorPalette="red" variant="solid" flexShrink={0}>
+                                        <Tag.Label fontSize="2xs" lineHeight="1">公会战禁用</Tag.Label>
+                                    </Tag.Root>
+                                )}
+                            </Flex>
                         </Flex>
 
                         <Box flexShrink={0} onClick={(e) => e.stopPropagation()}>
@@ -1129,24 +1197,30 @@ function AccountInfo({
                             >
                                 {' '}
                             </Alert>
+                            {/* 热区略小、叉图形略大 */}
                             <IconButton
                                 aria-label="Delete"
                                 size="xs"
                                 variant="ghost"
                                 colorPalette="gray"
                                 title="删除账号"
+                                minW="1.5rem"
+                                h="1.5rem"
+                                p={0}
+                                fontSize="1.25rem"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     deleteConfirm.onOpen();
                                 }}
                                 _hover={{ bg: 'red.subtle', color: 'red.fg' }}
                             >
-                                <FiX />
+                                <FiX size={18} strokeWidth={2.5} />
                             </IconButton>
                         </Box>
                     </Flex>
                 </Table.Cell>
 
+                {/* 表格状态列：保持可进详情（仅卡片状态区做安全点击区） */}
                 <Table.Cell
                     px={3}
                     py={3}
@@ -1185,114 +1259,167 @@ function AccountInfo({
             shadow="sm"
             borderRadius="2xl"
             borderWidth="1px"
-            borderColor="border.subtle"
+            borderColor={isSelected ? 'blue.focusRing' : 'border.subtle'}
             transition="all 0.2s"
+            overflow="hidden"
+            cursor="pointer"
+            onClick={goDetail}
+            /* 不要在 Root 上挂 title：会继承到选框/删除/状态，悬停误提示「进入详细设置」 */
             _hover={{ shadow: 'lg', transform: 'translateY(-2px)', borderColor: 'blue.focusRing' }}
         >
-            <Box
-                cursor="pointer"
-                onClick={goDetail}
-                title="进入详细设置"
-            >
-                <Card.Header pb={2}>
-                    <Flex justify="space-between" align="start" gap={2}>
-                        <Flex align="center" gap={0} minW={0} flex="1" pt={0}>
-                            <Box
-                                onClick={(e) => e.stopPropagation()}
-                                flexShrink={0}
-                                display="flex"
-                                alignItems="center"
+            {/* 整卡 onClick 进详情；Header/状态/按钮区内控件自行 stopPropagation */}
+            <Card.Header px={4} pt={3} pb={3} minH="2.75em" title="进入详细设置">
+                {/* 整 Header 随卡片进详情；仅选框/改名/删除 stopPropagation */}
+                <Flex align="center" gap={2} minH="2.25em">
+                    <Box
+                        onClick={(e) => e.stopPropagation()}
+                        flexShrink={0}
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        title="选择账号"
+                        cursor="default"
+                    >
+                        <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={onToggleSelect}
+                            colorPalette="blue"
+                            size="md"
+                            css={{
+                                '& [data-part=control], & .chakra-checkbox__control': {
+                                    borderRadius: '9999px',
+                                    width: '1.25rem',
+                                    height: '1.25rem',
+                                },
+                            }}
+                        />
+                    </Box>
+
+                    <Flex align="center" gap={2} minW={0} flex="1" overflow="hidden">
+                        <Box
+                            onClick={(e) => e.stopPropagation()}
+                            display="flex"
+                            alignItems="center"
+                            lineHeight="1"
+                            fontSize="lg"
+                            flex="1 1 6em"
+                            minW="4em"
+                            maxW={displayName !== alias ? '52%' : '75%'}
+                            overflow="hidden"
+                            title=""
+                            cursor="default"
+                        >
+                            {nameInput}
+                        </Box>
+
+                        {displayName !== alias && (
+                            <Text
+                                as="span"
+                                fontSize="xs"
+                                color="fg.muted"
+                                whiteSpace="nowrap"
+                                overflow="hidden"
+                                textOverflow="ellipsis"
+                                flex="1 1 4em"
+                                minW="3em"
+                                maxW="32%"
                                 lineHeight="1"
+                                title={alias}
                             >
-                                <Radio value={alias} colorPalette="purple" />
-                            </Box>
-                            <Box
-                                maxW="70%"
-                                minW={0}
-                                onClick={(e) => e.stopPropagation()}
-                                display="flex"
-                                alignItems="center"
-                                h="2rem"
-                                fontSize="lg"
-                                flex="0 1 auto"
-                            >
-                                {nameInput}
-                            </Box>
-                            {displayName !== alias && (
-                                <Text
-                                    as="span"
-                                    fontSize="xs"
-                                    color="fg.muted"
-                                    whiteSpace="nowrap"
-                                    overflow="hidden"
-                                    textOverflow="ellipsis"
-                                    maxW="30%"
-                                    lineHeight="1"
-                                    title={alias}
-                                >
-                                    {alias}
-                                </Text>
+                                {alias}
+                            </Text>
+                        )}
+
+                        <Flex align="center" gap={1} flexShrink={0} minW={0}>
+                            {defaultAccount === account.name && (
+                                <Tag.Root size="sm" p={0.5} colorPalette="purple" variant="solid" flexShrink={0}>
+                                    <Tag.Label fontSize="2xs" lineHeight="1" whiteSpace="nowrap">默认</Tag.Label>
+                                </Tag.Root>
                             )}
                             {account.clan_forbid && (
-                                <Tag.Root size="sm" colorPalette="red" variant="subtle" flexShrink={0}>
-                                    <Tag.Label>禁用</Tag.Label>
+                                <Tag.Root size="sm" p={0.5} colorPalette="red" variant="subtle" flexShrink={0}>
+                                    <Tag.Label fontSize="2xs" lineHeight="1" whiteSpace="nowrap">禁用</Tag.Label>
                                 </Tag.Root>
                             )}
                         </Flex>
-
-                        <Box onClick={(e) => e.stopPropagation()} flexShrink={0}>
-                            <Alert
-                                leastDestructiveRef={cancelRef}
-                                isOpen={deleteConfirm.open}
-                                onClose={deleteConfirm.onClose}
-                                title="删除账号"
-                                body={`确定删除账号${alias}吗？`}
-                                onConfirm={handleDeleteAccount}
-                            >
-                                {' '}
-                            </Alert>
-                            <IconButton
-                                size="xs"
-                                variant="ghost"
-                                colorPalette="gray"
-                                aria-label="Delete"
-                                title="删除账号"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteConfirm.onOpen();
-                                }}
-                                _hover={{ bg: 'red.subtle', color: 'red.fg' }}
-                            >
-                                <FiX />
-                            </IconButton>
-                        </Box>
                     </Flex>
-                </Card.Header>
 
-                <Card.Body py={2}>
-                    <Box bg="bg.subtle" p={2} borderRadius="lg">
-                        <Flex justify="space-between" align="center" mb={1} gap={2}>
-                            <Text fontSize="xs" color="fg.muted">
-                                上次运行
-                            </Text>
-                            <Text fontSize="xs" fontWeight="bold">
-                                {cleanTime || '—'}
-                            </Text>
-                        </Flex>
-                        <Flex justify="space-between" align="center" gap={2}>
-                            <Text fontSize="xs" color="fg.muted" flexShrink={0}>
-                                状态
-                            </Text>
-                            <Tag.Root size="sm" colorPalette={statusMeta.color} flexShrink={0}>
-                                <Tag.StartElement>{statusMeta.icon}</Tag.StartElement>
-                                <Tag.Label>{cleanStatus}</Tag.Label>
-                            </Tag.Root>
-                        </Flex>
+                    <Box
+                        onClick={(e) => e.stopPropagation()}
+                        flexShrink={0}
+                        title="删除账号"
+                        cursor="default"
+                    >
+                        <Alert
+                            leastDestructiveRef={cancelRef}
+                            isOpen={deleteConfirm.open}
+                            onClose={deleteConfirm.onClose}
+                            title="删除账号"
+                            body={`确定删除账号${displayName || alias}吗？`}
+                            onConfirm={handleDeleteAccount}
+                        >
+                            {' '}
+                        </Alert>
+                        <IconButton
+                            size="xs"
+                            variant="ghost"
+                            colorPalette="gray"
+                            aria-label="Delete"
+                            title="删除账号"
+                            minW="1.5rem"
+                            w="1.5rem"
+                            h="1.5rem"
+                            p={0}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                deleteConfirm.onOpen();
+                            }}
+                            _hover={{ bg: 'red.subtle', color: 'red.fg' }}
+                            css={{
+                                '& svg': {
+                                    width: '1.4em',
+                                    height: '1.4em',
+                                    strokeWidth: 2.5,
+                                },
+                            }}
+                        >
+                            <FiX />
+                        </IconButton>
                     </Box>
-                </Card.Body>
-            </Box>
+                </Flex>
+            </Card.Header>
 
-            <Card.Footer pt={2}>
+            {/* 仅灰底窗体本身不进详情；Body 上下/左右一丝空白仍进详情 */}
+            <Card.Body px={4} py={2} title="进入详细设置" cursor="pointer">
+                <Box
+                    bg="bg.subtle"
+                    p={2}
+                    borderRadius="lg"
+                    cursor="default"
+                    title=""
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <Flex justify="space-between" align="center" mb={1} gap={2}>
+                        <Text fontSize="xs" color="fg.muted">
+                            上次运行
+                        </Text>
+                        <Text fontSize="xs" fontWeight="bold">
+                            {cleanTime || '—'}
+                        </Text>
+                    </Flex>
+                    <Flex justify="space-between" align="center" gap={2}>
+                        <Text fontSize="xs" color="fg.muted" flexShrink={0}>
+                            状态
+                        </Text>
+                        <Tag.Root size="sm" colorPalette={statusMeta.color} flexShrink={0}>
+                            <Tag.StartElement>{statusMeta.icon}</Tag.StartElement>
+                            <Tag.Label>{cleanStatus}</Tag.Label>
+                        </Tag.Root>
+                    </Flex>
+                </Box>
+            </Card.Body>
+
+            <Card.Footer px={4} pt={2} pb={3} title="进入详细设置">
                 {renderActionButtons('md', true)}
             </Card.Footer>
         </Card.Root>

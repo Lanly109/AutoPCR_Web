@@ -3,12 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { FiActivity, FiCheck, FiStar, FiTarget, FiUserX } from 'react-icons/fi';
 
 import { AccountResponse } from '@interfaces/Account';
-import Area from '@components/Account/Area';
+import Area, { clearAreaConfigCache } from '@components/Account/Area';
 import ConfigImportExport from '@components/Account/ConfigImportExport.tsx';
 import Info from '@components/Account/Info';
 import { createFileRoute } from '@tanstack/react-router';
 import { getAccount, postAccountAreaDaily } from '@api/Account';
-import { toaster } from '@components/ui/toaster';
+import { toaster } from '../../../../components/ui/toaster';
 
 export const Route = createFileRoute('/daily/_sidebar/account/$account')({
     component: AccountComponent,
@@ -28,7 +28,6 @@ function AccountComponent() {
     const [favOnlyMap, setFavOnlyMap] = useState<Record<string, boolean>>({});
     const [cleanLoading, setCleanLoading] = useState(false);
 
-    // 与一览一致：用清理结果的 status 驱动按钮旁徽章（不常驻死字）
     const [cleanStatus, setCleanStatus] = useState<string>(
         () => (initialAccountInfo as any)?.daily_clean_time?.status || '',
     );
@@ -69,12 +68,33 @@ function AccountComponent() {
         }
     };
 
+    const handleImportSuccess = async () => {
+        clearAreaConfigCache(accountInfo?.alias || account);
+        await refreshAccountData();
+    };
+
+    // 仅切换账号时重置 Tab；刷新 accountInfo 不要把用户正在看的 Tab 打回初始
     useEffect(() => {
         setActiveTab(initialTab);
         setDisplayName(localStorage.getItem(`autopcr_displayName_${account}`) || account);
         const st = (initialAccountInfo as any)?.daily_clean_time?.status;
         if (st) setCleanStatus(st);
-    }, [initialAccountInfo, initialTab, account]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [account]);
+
+    useEffect(() => {
+        setDisplayName(localStorage.getItem(`autopcr_displayName_${account}`) || account);
+        const st = (initialAccountInfo as any)?.daily_clean_time?.status;
+        if (st) setCleanStatus(st);
+    }, [initialAccountInfo, account]);
+
+    // 离开本账号详情时清缓存
+    useEffect(() => {
+        const alias = account;
+        return () => {
+            clearAreaConfigCache(alias);
+        };
+    }, [account]);
 
     const currentArea =
         activeTab !== '0' && accountInfo?.area
@@ -93,12 +113,11 @@ function AccountComponent() {
             localStorage.getItem(`autopcr_displayName_${a}`) || displayName || a;
 
         setCleanLoading(true);
-        setCleanStatus(''); // 清理中先清掉旧徽章，结束后再按真实 status 显示
+        setCleanStatus('');
         toaster.create({ type: 'info', title: `开始为${nameForUi}清理日常...` });
 
         try {
             const res = await postAccountAreaDaily(a);
-            // 与一览相同数据源：daily_clean_time.status
             const st =
                 (res as any)?.daily_clean_time?.status ||
                 (res as any)?.status ||
@@ -108,7 +127,6 @@ function AccountComponent() {
             sessionStorage.setItem('autopcr_need_refresh_dashboard', '1');
             await refreshAccountData();
 
-            // toaster 只保留原来就能弹的那套，不另造文案体系
             if (st === '错误') {
                 toaster.create({ type: 'error', title: `${nameForUi}清日常结束` });
             } else if (st === '警告' || st === '中止') {
@@ -131,8 +149,6 @@ function AccountComponent() {
     return (
         <Tabs.Root
             lazyMount
-            // Area tabs contain many form controls. Keeping every visited panel mounted
-            // makes each later tab change reconcile an ever-growing hidden component tree.
             unmountOnExit
             variant="plain"
             value={activeTab}
@@ -214,7 +230,6 @@ function AccountComponent() {
                         >
                             <FiTarget /> 立刻清理
                         </Button>
-                        {/* 与一览 statusMeta 一致：出现在清理按钮右边 */}
                         {statusMeta && (
                             <Tag.Root size="sm" colorPalette={statusMeta.color} variant="subtle">
                                 <Tag.StartElement>{statusMeta.icon}</Tag.StartElement>
@@ -231,7 +246,7 @@ function AccountComponent() {
                     <ConfigImportExport
                         alias={accountInfo?.alias}
                         areas={accountInfo?.area}
-                        onImportSuccess={refreshAccountData}
+                        onImportSuccess={handleImportSuccess}
                     />
                 </Tabs.Content>
 

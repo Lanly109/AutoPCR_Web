@@ -26,6 +26,8 @@ interface ConfigProps {
     alias: string;
     value: ConfigValue;
     info: ConfigInfo;
+    /** 回写父级 Area；折叠卸载后再展开必须靠它 */
+    onConfigUpdate?: (key: string, value: ConfigValue) => void;
 }
 
 const configSaveChains = new Map<string, Promise<unknown>>();
@@ -43,6 +45,32 @@ export function enqueueConfigSave<T>(alias: string, task: () => Promise<T>): Pro
     return next;
 }
 
+/** 安全解析后端错误文案，避免 Blob/.text 抛错或 [object Object] */
+export async function getErrorDescription(err: unknown, fallback = '网络错误'): Promise<string> {
+    const data = (err as { response?: { data?: unknown } })?.response?.data;
+    try {
+        if (data == null) {
+            if (err instanceof Error && err.message) return err.message;
+            return fallback;
+        }
+        if (typeof Blob !== 'undefined' && data instanceof Blob) {
+            const t = await data.text();
+            return t || fallback;
+        }
+        if (typeof data === 'string') return data || fallback;
+        if (typeof data === 'object') {
+            try {
+                return JSON.stringify(data);
+            } catch {
+                return fallback;
+            }
+        }
+        return String(data);
+    } catch {
+        return fallback;
+    }
+}
+
 const ROW_H = '2.25rem';
 const SINGLE_SEARCH_THRESHOLD = 30;
 
@@ -50,10 +78,15 @@ function useConfigState<T>(
     alias: string,
     key: string,
     propValue: T,
+    onConfigUpdate?: (key: string, value: ConfigValue) => void,
     transform?: (val: T) => ConfigValue,
 ) {
     const [state, setState] = useState<T>(propValue);
     const mountedRef = useRef(true);
+    const propRef = useRef(propValue);
+    propRef.current = propValue;
+    const onUpdateRef = useRef(onConfigUpdate);
+    onUpdateRef.current = onConfigUpdate;
 
     useEffect(() => {
         setState(propValue);
@@ -69,19 +102,22 @@ function useConfigState<T>(
     const save = async (newValue: T): Promise<void> => {
         setState(newValue);
         const payload = transform ? transform(newValue) : (newValue as ConfigValue);
+        // 先写父级缓存，折叠/切 Tab 再展开仍是新值
+        onUpdateRef.current?.(key, payload);
         try {
             const res = await enqueueConfigSave(alias, () => putAccountConfig(alias, key, payload));
             if (mountedRef.current) {
                 toaster.create({ type: 'success', title: '保存成功', description: res });
             }
         } catch (err) {
-            const axiosErr = err as AxiosError;
+            const rollback = propRef.current;
+            onUpdateRef.current?.(key, rollback as ConfigValue);
             if (mountedRef.current) {
-                setState(propValue);
+                setState(rollback);
                 toaster.create({
                     type: 'error',
                     title: '保存失败',
-                    description: (axiosErr.response?.data as string) || '网络错误',
+                    description: await getErrorDescription(err),
                 });
             }
         }
@@ -90,8 +126,9 @@ function useConfigState<T>(
     return [state, setState, save] as const;
 }
 
-function ConfigBool({ alias, value, info }: ConfigProps) {
-    const [checked, , save] = useConfigState(alias, info.key, value as boolean);
+
+function ConfigBool({ alias, value, info, onConfigUpdate }: ConfigProps) {
+    const [checked, , save] = useConfigState(alias, info.key, value as boolean, onConfigUpdate);
 
     return (
         <InputGroup
@@ -111,12 +148,17 @@ function ConfigBool({ alias, value, info }: ConfigProps) {
     );
 }
 
-function ConfigInt({ alias, value, info }: ConfigProps) {
-    const min = Math.min(...(info.candidates.map((c) => c.value) as number[]));
-    const max = Math.max(...(info.candidates.map((c) => c.value) as number[]));
+function ConfigInt({ alias, value, info, onConfigUpdate }: ConfigProps) {
+    const candNums = (info.candidates || []).map((c) => c.value).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const min = candNums.length ? Math.min(...candNums) : 0;
+    const max = candNums.length ? Math.max(...candNums) : Number.MAX_SAFE_INTEGER;
 
     const [numStr, setNumStr] = useState(String(value));
     const mountedRef = useRef(true);
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const onUpdateRef = useRef(onConfigUpdate);
+    onUpdateRef.current = onConfigUpdate;
 
     useEffect(() => {
         setNumStr(String(value));
@@ -139,6 +181,7 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
         if (finalValue < min) finalValue = min;
         if (finalValue > max) finalValue = max;
         setNumStr(String(finalValue));
+        onUpdateRef.current?.(info.key, finalValue as ConfigValue);
 
         enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, finalValue as ConfigValue))
             .then((res) => {
@@ -146,13 +189,15 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
                     toaster.create({ type: 'success', title: '保存成功', description: res });
                 }
             })
-            .catch((err: AxiosError) => {
+            .catch(async (err: AxiosError) => {
+                const rollback = valueRef.current;
+                onUpdateRef.current?.(info.key, rollback as ConfigValue);
                 if (mountedRef.current) {
-                    setNumStr(String(value));
+                    setNumStr(String(rollback));
                     toaster.create({
                         type: 'error',
                         title: '保存失败',
-                        description: (err.response?.data as string) || '网络错误',
+                        description: await getErrorDescription(err),
                     });
                 }
             });
@@ -210,9 +255,12 @@ function ConfigInt({ alias, value, info }: ConfigProps) {
     );
 }
 
-function ConfigSingleSearch({ alias, value, info }: ConfigProps) {
+
+function ConfigSingleSearch({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const [localValue, setLocalValue] = useState<ConfigValue>(value);
     const mountedRef = useRef(true);
+    const onUpdateRef = useRef(onConfigUpdate);
+    onUpdateRef.current = onConfigUpdate;
 
     useEffect(() => {
         setLocalValue(value);
@@ -245,19 +293,22 @@ function ConfigSingleSearch({ alias, value, info }: ConfigProps) {
             })) as ConfigValue | undefined;
             if (ret === undefined) return;
 
+            // 乐观更新显示，失败再回滚
+            setLocalValue(ret);
+            onUpdateRef.current?.(info.key, ret);
             const res = await enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, ret));
             if (mountedRef.current) {
-                setLocalValue(ret);
                 toaster.create({ type: 'success', title: '保存成功', description: res });
             }
         } catch (err) {
-            const axiosErr = err as AxiosError;
+            onUpdateRef.current?.(info.key, previousValue);
+            try { await NiceModal.hide(singleSelectModal); } catch { /* ignore */ }
             if (mountedRef.current) {
                 setLocalValue(previousValue);
                 toaster.create({
                     type: 'error',
                     title: '保存失败',
-                    description: (axiosErr.response?.data as string) || '网络错误',
+                    description: await getErrorDescription(err),
                 });
             }
         }
@@ -280,12 +331,8 @@ function ConfigSingleSearch({ alias, value, info }: ConfigProps) {
     );
 }
 
-function ConfigSingle({ alias, value, info }: ConfigProps) {
-    if ((info.candidates?.length || 0) >= SINGLE_SEARCH_THRESHOLD) {
-        return <ConfigSingleSearch alias={alias} value={value} info={info} />;
-    }
-
-    const [selectValue, , save] = useConfigState(alias, info.key, value as string | number);
+function ConfigSingleSelect({ alias, value, info, onConfigUpdate }: ConfigProps) {
+    const [selectValue, , save] = useConfigState(alias, info.key, value as string | number, onConfigUpdate);
 
     return (
         <InputGroup w="1/4" minH={ROW_H} alignItems="center" startElement={info.desc}>
@@ -315,7 +362,16 @@ function ConfigSingle({ alias, value, info }: ConfigProps) {
     );
 }
 
-function ConfigMulti({ alias, value, info }: ConfigProps) {
+/** 路由组件：条件分支里不调用 Hook，避免违反 Rules of Hooks */
+function ConfigSingle(props: ConfigProps) {
+    if ((props.info.candidates?.length || 0) >= SINGLE_SEARCH_THRESHOLD) {
+        return <ConfigSingleSearch {...props} />;
+    }
+    return <ConfigSingleSelect {...props} />;
+}
+
+
+function ConfigMulti({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const initialStrArr = useMemo(
         () => (value as (string | number)[]).map(String),
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -324,6 +380,10 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
 
     const [groupValue, setGroupValue] = useState(initialStrArr);
     const mountedRef = useRef(true);
+    const onUpdateRef = useRef(onConfigUpdate);
+    onUpdateRef.current = onConfigUpdate;
+    const initialRef = useRef(initialStrArr);
+    initialRef.current = initialStrArr;
 
     useEffect(() => {
         setGroupValue(initialStrArr);
@@ -339,22 +399,28 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
     const handleSave = (newStrArr: string[]) => {
         let postValue: ConfigValue = newStrArr;
         const intArr = newStrArr.map(Number);
-        if (intArr.length > 0 && !isNaN(intArr[0])) postValue = intArr;
+        if (intArr.length > 0 && intArr.every((n) => !isNaN(n))) postValue = intArr;
 
         setGroupValue(newStrArr);
+        onUpdateRef.current?.(info.key, postValue);
         enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, postValue))
             .then((res) => {
                 if (mountedRef.current) {
                     toaster.create({ type: 'success', title: '保存成功', description: res });
                 }
             })
-            .catch((err: AxiosError) => {
+            .catch(async (err: AxiosError) => {
+                const rollback = initialRef.current;
+                let rollbackPayload: ConfigValue = rollback;
+                const ints = rollback.map(Number);
+                if (ints.length > 0 && ints.every((n) => !isNaN(n))) rollbackPayload = ints;
+                onUpdateRef.current?.(info.key, rollbackPayload);
                 if (mountedRef.current) {
-                    setGroupValue(initialStrArr);
+                    setGroupValue(rollback);
                     toaster.create({
                         type: 'error',
                         title: '保存失败',
-                        description: (err.response?.data as string) || '网络错误',
+                        description: await getErrorDescription(err),
                     });
                 }
             });
@@ -386,9 +452,14 @@ function ConfigMulti({ alias, value, info }: ConfigProps) {
     );
 }
 
-function ConfigTime({ alias, value, info }: ConfigProps) {
+
+function ConfigTime({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const [timeStr, setTimeStr] = useState(value as string);
     const mountedRef = useRef(true);
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const onUpdateRef = useRef(onConfigUpdate);
+    onUpdateRef.current = onConfigUpdate;
 
     useEffect(() => {
         setTimeStr(value as string);
@@ -403,19 +474,22 @@ function ConfigTime({ alias, value, info }: ConfigProps) {
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
         const newValue = e.target.value;
+        onUpdateRef.current?.(info.key, newValue as ConfigValue);
         enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, newValue as ConfigValue))
             .then((res) => {
                 if (mountedRef.current) {
                     toaster.create({ type: 'success', title: '保存成功', description: res });
                 }
             })
-            .catch((err: AxiosError) => {
+            .catch(async (err: AxiosError) => {
+                const rollback = valueRef.current as string;
+                onUpdateRef.current?.(info.key, rollback as ConfigValue);
                 if (mountedRef.current) {
-                    setTimeStr(value as string);
+                    setTimeStr(rollback);
                     toaster.create({
                         type: 'error',
                         title: '保存失败',
-                        description: (err.response?.data as string) || '网络错误',
+                        description: await getErrorDescription(err),
                     });
                 }
             });
@@ -436,10 +510,15 @@ function ConfigTime({ alias, value, info }: ConfigProps) {
     );
 }
 
-function ConfigText({ alias, value, info }: ConfigProps) {
+
+function ConfigText({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const [textStr, setTextStr] = useState(value as string);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const mountedRef = useRef(true);
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const onUpdateRef = useRef(onConfigUpdate);
+    onUpdateRef.current = onConfigUpdate;
 
     useEffect(() => {
         setTextStr(value as string);
@@ -462,19 +541,22 @@ function ConfigText({ alias, value, info }: ConfigProps) {
 
     const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value;
+        onUpdateRef.current?.(info.key, newValue as ConfigValue);
         enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, newValue as ConfigValue))
             .then((res) => {
                 if (mountedRef.current) {
                     toaster.create({ type: 'success', title: '保存成功', description: res });
                 }
             })
-            .catch((err: AxiosError) => {
+            .catch(async (err: AxiosError) => {
+                const rollback = valueRef.current as string;
+                onUpdateRef.current?.(info.key, rollback as ConfigValue);
                 if (mountedRef.current) {
-                    setTextStr(value as string);
+                    setTextStr(rollback);
                     toaster.create({
                         type: 'error',
                         title: '保存失败',
-                        description: (err.response?.data as string) || '网络错误',
+                        description: await getErrorDescription(err),
                     });
                 }
             });
@@ -497,9 +579,12 @@ function ConfigText({ alias, value, info }: ConfigProps) {
     );
 }
 
-function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
+
+function ConfigMultiSearch({ alias, value, info, onConfigUpdate }: ConfigProps) {
     const [localValue, setLocalValue] = useState<ConfigValue>(value);
     const mountedRef = useRef(true);
+    const onUpdateRef = useRef(onConfigUpdate);
+    onUpdateRef.current = onConfigUpdate;
 
     useEffect(() => {
         setLocalValue(value);
@@ -527,20 +612,22 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
             })) as ConfigValue;
             if (ret === undefined) return;
 
+            // show 关闭后已 resolve，成功路径不要再 hide，否则可能进 catch 误回滚
+            setLocalValue(ret);
+            onUpdateRef.current?.(info.key, ret);
             const res = await enqueueConfigSave(alias, () => putAccountConfig(alias, info.key, ret));
             if (mountedRef.current) {
-                setLocalValue(ret);
                 toaster.create({ type: 'success', title: '保存成功', description: res });
             }
-            await NiceModal.hide(multiSelectModal);
         } catch (err) {
-            const axiosErr = err as AxiosError;
+            onUpdateRef.current?.(info.key, previousValue);
+            try { await NiceModal.hide(multiSelectModal); } catch { /* ignore */ }
             if (mountedRef.current) {
                 setLocalValue(previousValue);
                 toaster.create({
                     type: 'error',
                     title: '保存失败',
-                    description: (axiosErr.response?.data as string) || '网络错误',
+                    description: await getErrorDescription(err),
                 });
             }
         }
@@ -569,22 +656,22 @@ function ConfigMultiSearch({ alias, value, info }: ConfigProps) {
     );
 }
 
-export default function Config({ alias, value, info }: ConfigProps) {
+export default function Config({ alias, value, info, onConfigUpdate }: ConfigProps) {
     switch (info?.config_type) {
         case 'bool':
-            return <ConfigBool alias={alias} value={value} info={info} />;
+            return <ConfigBool alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'int':
-            return <ConfigInt alias={alias} value={value} info={info} />;
+            return <ConfigInt alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'single':
-            return <ConfigSingle alias={alias} value={value} info={info} />;
+            return <ConfigSingle alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'multi':
-            return <ConfigMulti alias={alias} value={value} info={info} />;
+            return <ConfigMulti alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'time':
-            return <ConfigTime alias={alias} value={value} info={info} />;
+            return <ConfigTime alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'text':
-            return <ConfigText alias={alias} value={value} info={info} />;
+            return <ConfigText alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         case 'multi_search':
-            return <ConfigMultiSearch alias={alias} value={value} info={info} />;
+            return <ConfigMultiSearch alias={alias} value={value} info={info} onConfigUpdate={onConfigUpdate} />;
         default:
             return null;
     }

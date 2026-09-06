@@ -1,12 +1,13 @@
 import { Box, Flex, IconButton, Popover, Stack, useDisclosure } from '@chakra-ui/react';
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FiCompass } from 'react-icons/fi';
-import Module from "./Module";
+import Module from './Module';
 import { ConfigValue, ModuleResponse } from '@interfaces/Module';
 import { Skeleton } from '../../components/ui/skeleton';
-import Toc from "./Toc";
+import Toc from './Toc';
 import { getAccountConfig } from '@api/Account';
+import { toaster } from '../../components/ui/toaster';
 
 interface AreaProps {
     alias: string;
@@ -20,70 +21,121 @@ export interface TocItem {
     id: string;
 }
 
+/** 区服配置数据缓存：只存 JSON，不占 React/DOM。UI 卸载后数据仍在。 */
+const areaConfigCache = new Map<string, ModuleResponse>();
+
+function cacheKey(alias: string, key: string) {
+    return `${alias}::${key}`;
+}
+
+export function getCachedAreaConfig(alias: string, key: string) {
+    return areaConfigCache.get(cacheKey(alias, key));
+}
+
+export function setCachedAreaConfig(alias: string, key: string, data: ModuleResponse) {
+    areaConfigCache.set(cacheKey(alias, key), data);
+}
+
+/** 离开账号详情 / 导入配置成功后调用，释放该账号缓存 */
+export function clearAreaConfigCache(alias?: string) {
+    if (!alias) {
+        areaConfigCache.clear();
+        return;
+    }
+    for (const k of [...areaConfigCache.keys()]) {
+        if (k.startsWith(`${alias}::`)) areaConfigCache.delete(k);
+    }
+}
+
+function mergeFavIntoConfig(alias: string, key: string, res: ModuleResponse): ModuleResponse {
+    const favKey = `autopcr_fav_${alias}`;
+    const stored = localStorage.getItem(favKey);
+    if (!stored) return res;
+    try {
+        const favMap = JSON.parse(stored) as Record<string, string[]>;
+        const areaFavs = favMap[key] || [];
+        if (areaFavs.length === 0) return res;
+        const mergedConfig = { ...res.config };
+        areaFavs.forEach((moduleKey) => {
+            mergedConfig[`_fav_${moduleKey}`] = true;
+        });
+        return { ...res, config: mergedConfig };
+    } catch {
+        return res;
+    }
+}
+
 export default function Area({ alias, keys: key, areaName, showOnlyFav = false }: AreaProps) {
+    const cached = alias && key ? getCachedAreaConfig(alias, key) : undefined;
+
     const [state, setState] = useState<{
         config: ModuleResponse | null;
         isLoading: boolean;
-    }>({
-        config: null,
-        isLoading: true,
-    });
+    }>(() => ({
+        config: cached ?? null,
+        isLoading: !cached,
+    }));
 
     const { open, onOpen, onClose } = useDisclosure();
 
     useEffect(() => {
         let isMounted = true;
+        if (!alias || !key) return;
 
-        if (alias && key) {
-            getAccountConfig(alias, key)
-                .then((res) => {
-                    if (!isMounted) return;
-
-                    const favKey = `autopcr_fav_${alias}`;
-                    const stored = localStorage.getItem(favKey);
-                    let finalRes = res;
-
-                    if (stored) {
-                        try {
-                            const favMap = JSON.parse(stored) as Record<string, string[]>;
-                            const areaFavs = favMap[key] || [];
-                            const mergedConfig = { ...res.config };
-                            areaFavs.forEach((moduleKey) => {
-                                mergedConfig[`_fav_${moduleKey}`] = true;
-                            });
-                            finalRes = { ...res, config: mergedConfig };
-                        } catch {
-                            finalRes = res;
-                        }
-                    }
-
-                    setState({ config: finalRes, isLoading: false });
-                })
-                .catch((err) => {
-                    if (isMounted) {
-                        console.error(err);
-                        setState((prev) => ({ ...prev, isLoading: false }));
-                    }
-                });
+        const hit = getCachedAreaConfig(alias, key);
+        if (hit) {
+            const withFav = mergeFavIntoConfig(alias, key, hit);
+            if (withFav !== hit) {
+                setCachedAreaConfig(alias, key, withFav);
+            }
+            setState({ config: withFav, isLoading: false });
+            return () => {
+                isMounted = false;
+            };
         }
+
+        setState({ config: null, isLoading: true });
+
+        getAccountConfig(alias, key)
+            .then((res) => {
+                if (!isMounted) return;
+                const finalRes = mergeFavIntoConfig(alias, key, res);
+                setCachedAreaConfig(alias, key, finalRes);
+                setState({ config: finalRes, isLoading: false });
+            })
+            .catch((err) => {
+                if (isMounted) {
+                    console.error(err);
+                    setState((prev) => ({ ...prev, isLoading: false }));
+                    toaster.create({
+                        type: 'error',
+                        title: '加载配置失败',
+                        description: '请检查网络后重新进入该区服',
+                    });
+                }
+            });
 
         return () => {
             isMounted = false;
         };
     }, [alias, key]);
 
-    const handleConfigUpdate = (configKey: string, value: ConfigValue) => {
+    const handleConfigUpdate = useCallback((configKey: string, value: ConfigValue) => {
         setState((prev) => {
             if (!prev.config) return prev;
-            return {
-                ...prev,
-                config: {
-                    ...prev.config,
-                    config: { ...prev.config.config, [configKey]: value },
-                },
+            const nextConfig: ModuleResponse = {
+                ...prev.config,
+                config: { ...prev.config.config, [configKey]: value },
             };
+            return { ...prev, config: nextConfig };
         });
-    };
+    }, []);
+
+    // state.config 变化时同步到会话缓存（离开区服 UI 后仍能秒开且带最新改动）
+    useEffect(() => {
+        if (!alias || !key || !state.config) return;
+        setCachedAreaConfig(alias, key, state.config);
+    }, [alias, key, state.config]);
 
     const config = state.config;
 
@@ -145,7 +197,7 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
 
             <Flex
                 position="fixed"
-                right={{ base: "3", md: "6" }}
+                right={{ base: '3', md: '6' }}
                 top="50%"
                 transform="translateY(-50%)"
                 justifyContent="center"
@@ -157,11 +209,11 @@ export default function Area({ alias, keys: key, areaName, showOnlyFav = false }
                         <IconButton
                             aria-label="TOC"
                             colorPalette="blue"
-                            size={{ base: "lg", md: "xl" }}
+                            size={{ base: 'lg', md: 'xl' }}
                             rounded="full"
                             shadow="xl"
                             transition="transform 0.2s ease"
-                            _hover={{ transform: "scale(1.1)", shadow: "2xl" }}
+                            _hover={{ transform: 'scale(1.1)', shadow: '2xl' }}
                         >
                             <FiCompass />
                         </IconButton>
