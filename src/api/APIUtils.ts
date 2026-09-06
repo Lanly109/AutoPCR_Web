@@ -38,6 +38,11 @@ export const Fetch = axios.create({
  */
 const getErrorMessage = (error: AxiosError): string => {
     if (error.response) {
+        if (error.response.status === 429) {
+            const retryAfter = Number(error.response.headers['retry-after']);
+            if (Number.isFinite(retryAfter)) return `请在 ${Math.ceil(retryAfter)} 秒后重试`;
+        }
+
         const data = error.response.data as any;
         // 如果后端返回的是字符串，直接使用；如果是对象，尝试获取 message 或 error 字段
         if (typeof data === 'string') return data;

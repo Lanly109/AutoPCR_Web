@@ -107,6 +107,7 @@ export default function LoginWithPasswordComponent() {
                         </Button>
                         <Button
                             colorPalette="brand"
+                            loading={isSubmitting}
                             onClick={handleSubmit(handleRegister)}
                         >
                             注册
