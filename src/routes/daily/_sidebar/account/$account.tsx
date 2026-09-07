@@ -16,13 +16,22 @@ export const Route = createFileRoute('/daily/_sidebar/account/$account')({
     errorComponent: () => <div> Not Found </div>,
 });
 
+function hasAccountCredentials(accountInfo?: AccountResponse) {
+    if (!accountInfo?.username || !accountInfo?.password) {
+        return false;
+    }
+    if (accountInfo.channel === '台服') {
+        return !!accountInfo.viewer_id;
+    }
+    return true;
+}
+
 function AccountComponent() {
     const { account } = Route.useParams();
     const initialAccountInfo = Route.useLoaderData<AccountResponse>();
     const [accountInfo, setAccountInfo] = useState<AccountResponse>(initialAccountInfo);
 
-    const initialTab =
-        initialAccountInfo?.username !== '' && initialAccountInfo?.password !== '' ? '1' : '0';
+    const initialTab = hasAccountCredentials(initialAccountInfo) ? '1' : '0';
 
     const [activeTab, setActiveTab] = useState<string>(initialTab);
     const [favOnlyMap, setFavOnlyMap] = useState<Record<string, boolean>>({});
