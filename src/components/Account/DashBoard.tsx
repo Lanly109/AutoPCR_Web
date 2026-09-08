@@ -13,7 +13,7 @@ import {
     Tag,
     Text,
 } from '@chakra-ui/react';
-import { FiActivity, FiBook, FiCheck, FiCopy, FiGrid, FiKey, FiLayers, FiList, FiStar, FiTarget, FiUpload, FiUserMinus, FiUserPlus, FiUserX, FiX } from 'react-icons/fi';
+import { FiActivity, FiBook, FiCheck, FiCopy, FiGrid, FiKey, FiLayers, FiList, FiSettings, FiStar, FiTarget, FiUpload, FiUserMinus, FiUserPlus, FiUserX, FiX } from 'react-icons/fi';
 import React, { ChangeEvent, useMemo, useRef } from 'react';
 import { Skeleton, SkeletonText } from '../../components/ui/skeleton';
 import { clearAccounts, deleteAccount, getAccountDailyResultList, getUserInfo, putUserInfo } from '@api/Account';
@@ -1036,7 +1036,21 @@ function AccountInfo({
                 onChange={handleImportConfigFile}
             />
 
-            <Tooltip content="立刻清理" openDelay={0} closeDelay={0}>
+            {/* Keep the 1.7.0 action positions: settings first, daily cleanup second. */}
+            <Tooltip content="详细配置" openDelay={0} closeDelay={0}>
+                <IconButton
+                    aria-label="Settings"
+                    size={size}
+                    flex={flexMode ? '1' : undefined}
+                    variant="ghost"
+                    colorPalette="blue"
+                    onClick={goDetail}
+                >
+                    <FiSettings />
+                </IconButton>
+            </Tooltip>
+
+            <Tooltip content="立即清理" openDelay={0} closeDelay={0}>
                 <IconButton
                     aria-label="Clean Daily"
                     size={size}
@@ -1047,20 +1061,6 @@ function AccountInfo({
                     loading={buttomLoading.open}
                 >
                     <FiTarget />
-                </IconButton>
-            </Tooltip>
-
-            <Tooltip content="导入配置" openDelay={0} closeDelay={0}>
-                <IconButton
-                    aria-label="Import Config"
-                    size={size}
-                    flex={flexMode ? '1' : undefined}
-                    variant="ghost"
-                    colorPalette="blue"
-                    onClick={() => importFileRef.current?.click()}
-                    loading={buttomLoading.open}
-                >
-                    <FiUpload />
                 </IconButton>
             </Tooltip>
 
@@ -1089,6 +1089,20 @@ function AccountInfo({
                     loading={buttomLoading.open}
                 >
                     <FiActivity />
+                </IconButton>
+            </Tooltip>
+
+            <Tooltip content="导入配置" openDelay={0} closeDelay={0}>
+                <IconButton
+                    aria-label="Import Config"
+                    size={size}
+                    flex={flexMode ? '1' : undefined}
+                    variant="ghost"
+                    colorPalette="blue"
+                    onClick={() => importFileRef.current?.click()}
+                    loading={buttomLoading.open}
+                >
+                    <FiUpload />
                 </IconButton>
             </Tooltip>
         </HStack>
