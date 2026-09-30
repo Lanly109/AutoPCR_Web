@@ -20,7 +20,7 @@ interface ModalProps {
 const resultModal = NiceModal.create(({ alias, title, resultInfo }: ModalProps) => {
     const modal = useModal();
     return (
-        <Modal blockScrollOnMount={false} size="full" closeOnOverlayClick={false} isOpen={modal.visible} onClose={modal.hide}>
+        <Modal blockScrollOnMount={false} size="full" closeOnOverlayClick={false} isOpen={modal.visible} onClose={async () => { modal.resolve(); await modal.hide(); }}>
             <ModalOverlay />
             <ModalContent>
                 <ModalHeader>{alias}的{title}结果</ModalHeader>

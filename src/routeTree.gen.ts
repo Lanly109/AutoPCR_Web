@@ -13,6 +13,7 @@ import { createFileRoute } from '@tanstack/react-router'
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as DailyIndexImport } from './routes/daily/index'
 import { Route as DailyValidateImport } from './routes/daily/validate'
 import { Route as DailyLoginImport } from './routes/daily/login'
 import { Route as DailySidebarImport } from './routes/daily/_sidebar'
@@ -29,6 +30,11 @@ const DailyImport = createFileRoute('/daily')()
 const DailyRoute = DailyImport.update({
   path: '/daily',
   getParentRoute: () => rootRoute,
+} as any)
+
+const DailyIndexRoute = DailyIndexImport.update({
+  path: '/',
+  getParentRoute: () => DailyRoute,
 } as any)
 
 const DailyValidateRoute = DailyValidateImport.update({
@@ -83,6 +89,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DailyValidateImport
       parentRoute: typeof DailyImport
     }
+    '/daily/': {
+      preLoaderRoute: typeof DailyIndexImport
+      parentRoute: typeof DailyImport
+    }
     '/daily/_sidebar/account/$account': {
       preLoaderRoute: typeof DailySidebarAccountAccountImport
       parentRoute: typeof DailySidebarImport
@@ -109,6 +119,7 @@ export const routeTree = rootRoute.addChildren([
     ]),
     DailyLoginRoute,
     DailyValidateRoute,
+    DailyIndexRoute,
   ]),
 ])
 

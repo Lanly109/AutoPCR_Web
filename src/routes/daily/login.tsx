@@ -11,12 +11,28 @@ import { LuMoon, LuSun } from 'react-icons/lu'
 import LoginWithPasswordComponent from "@components/Login/LoginWithPasswordComponent"
 import { Skeleton } from '../../components/ui/skeleton'
 import autopcr from "@/assets/autopcr.svg"
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
 import { keyframes } from '@emotion/react'
 import { useColorMode } from '../../components/ui/color-mode'
+import { API } from '@api/APIUtils'
+import axios from 'axios'
+import { Route as AccountRoute } from '@routes/daily/_sidebar/account/index'
 
 export const Route = createFileRoute('/daily/login')({
     component: LoginComponent,
+    // 已登录时登录页没有意义，直接送去账号主页
+    beforeLoad: async () => {
+        try {
+            await API.get('/account', { skipErrorHandler: true, skipAuthRedirect: true })
+            throw redirect({ to: AccountRoute.to })
+        } catch (e) {
+            if (isRedirect(e)) throw e
+            // 401/未授权：确实是未登录，留在登录页
+            if (axios.isAxiosError(e) && e.response?.status === 401) return
+            // 网络故障等非授权错误：放行进入应用，让页面自身的 401 拦截器兜底，避免弱网被静默扣在登录页
+            throw redirect({ to: AccountRoute.to })
+        }
+    },
 })
 
 const float = keyframes`

@@ -19,6 +19,8 @@ import { AxiosError } from 'axios';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Field } from '../../components/ui/field';
 import { putAccount } from '@/api/Account';
+import { getErrorDescription } from './Config';
+import { BATCH_RUNNER, getDisplayName } from './accountShared';
 import { toaster } from '../../components/ui/toaster';
 
 interface InfoProps {
@@ -34,8 +36,8 @@ const fadeEntry = keyframes`
 export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
     const alias = accountInfo?.alias || '';
     const displayName =
-        alias && alias !== 'BATCH_RUNNER'
-            ? (localStorage.getItem(`autopcr_displayName_${alias}`) || alias)
+        alias && alias !== BATCH_RUNNER
+            ? getDisplayName(alias) // safe 封装：渲染期裸读 localStorage 在隐私模式会抛 SecurityError 白屏
             : alias;
 
     const [username, setUsername] = useState<string>(accountInfo?.username);
@@ -71,8 +73,8 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                     onSaveSuccess();
                 }
             })
-            .catch((err: AxiosError) => {
-                toaster.create({ title: '保存失败', description: (err.response?.data as string) || '网络错误', type: 'error' });
+            .catch(async (err: AxiosError) => {
+                toaster.create({ title: '保存失败', description: await getErrorDescription(err), type: 'error' });
             })
             .finally(() => {
                 onClose();
@@ -129,9 +131,9 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
         >
              <Flex justify="space-between" align="center" mb={2}>
                 <Heading size="lg" fontWeight="bold" letterSpacing="tight">
-                    {alias === 'BATCH_RUNNER' ? '批量运行配置' : displayName}
+                    {alias === BATCH_RUNNER ? '批量运行配置' : displayName}
                 </Heading>
-                {accountInfo?.alias !== 'BATCH_RUNNER' && (
+                {accountInfo?.alias !== BATCH_RUNNER && (
                     <Text fontSize="sm" color="fg.muted">
                         基础信息配置
                     </Text>
@@ -140,7 +142,7 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
 
             <form onSubmit={handleSave}>
                 <Stack gap={6}>
-                    {accountInfo?.alias !== 'BATCH_RUNNER' && (
+                    {accountInfo?.alias !== BATCH_RUNNER && (
                         <>
                             <Field label="账号" required>
                                 <Input
@@ -174,6 +176,7 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                                             </option>
                                         ))}
                                     </NativeSelect.Field>
+                                    <NativeSelect.Indicator />
                                 </NativeSelect.Root>
                             </Field>
                             
@@ -191,7 +194,7 @@ export default function Info({ accountInfo, onSaveSuccess }: InfoProps) {
                         </>
                     )}
 
-                    {accountInfo?.alias === 'BATCH_RUNNER' && (
+                    {accountInfo?.alias === BATCH_RUNNER && (
                         <Stack gap={5}>
                              <Flex justify="space-between" align="center" bg="bg.subtle" p={3} rounded="xl">
                                 <Checkbox 

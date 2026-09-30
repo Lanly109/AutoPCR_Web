@@ -23,3 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 stats.html
+.vite-dev*.log
+.pnpm-store/
+
+# 本地审计导出
+audit/*
+!audit/backend-pr/
+
+.commit-msg.txt
+_tmp_autopcr_patchgen/

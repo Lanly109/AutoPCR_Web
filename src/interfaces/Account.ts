@@ -31,6 +31,7 @@ export interface AccountResponse {
    * 批量所有账号 
    */
   all_accounts: string[];
+  daily_clean_time?: { status?: string } | null;
 }
 
 export interface AreaInfo {

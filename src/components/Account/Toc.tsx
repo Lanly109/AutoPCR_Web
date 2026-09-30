@@ -9,9 +9,10 @@ import { TocItem } from './Area'
 
 interface SidebarProps extends BoxProps {
     tocList: TocItem[]
+    onNavigate?: () => void
 }
 
-export default function Toc({ tocList, ...rest }: SidebarProps) {
+export default function Toc({ tocList, onNavigate, ...rest }: SidebarProps) {
 
     return (
         <Box
@@ -23,7 +24,7 @@ export default function Toc({ tocList, ...rest }: SidebarProps) {
             {
                 tocList.map((item, index) => {
                     return (
-                        <NavItem key={index} module_id={item.id}>
+                        <NavItem key={index} module_id={item.id} onNavigate={onNavigate}>
                             {item.name}
                         </NavItem>
                     )
@@ -35,8 +36,9 @@ export default function Toc({ tocList, ...rest }: SidebarProps) {
 
 interface NavItemProps extends FlexProps {
     module_id: string
+    onNavigate?: () => void
 }
-const NavItem = ({ module_id, children, ...rest }: NavItemProps) => {
+const NavItem = ({ module_id, onNavigate, children, ...rest }: NavItemProps) => {
     return (
         <Box
             as="a"
@@ -49,6 +51,7 @@ const NavItem = ({ module_id, children, ...rest }: NavItemProps) => {
                 document.querySelector(`#${module_id}`)?.scrollIntoView({
                     behavior: "smooth"
                 });
+                onNavigate?.();
             }}>
             <Flex
                 align="center"

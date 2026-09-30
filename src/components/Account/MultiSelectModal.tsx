@@ -22,8 +22,9 @@ interface MultiSelectModalProps {
 const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectModalProps) => {
     const modal = useModal();
 
-    const [selectedUnits, setSelectedUnits] = useState<ConfigValue[]>(value);
-    const [availableUnits, setAvailableUnits] = useState<Candidate[]>(candidates.filter((u) => !value.includes(u.value)));
+    const initValue = Array.isArray(value) ? value : [];
+    const [selectedUnits, setSelectedUnits] = useState<ConfigValue[]>(initValue);
+    const [availableUnits, setAvailableUnits] = useState<Candidate[]>(candidates.filter((u) => !initValue.includes(u.value)));
     const [searchAllText, setSearchAllText] = useState('');
     const [searchSelectedText, setSearchSelectedText] = useState('');
     const [draggedUnit, setDraggedUnit] = useState<ConfigValue | null>(null);
@@ -31,8 +32,8 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
     const lastVisibleRef = useRef(false);
 
     if (modal.visible && !lastVisibleRef.current) {
-        setSelectedUnits(value);
-        setAvailableUnits(candidates.filter(u => !value.includes(u.value)));
+        setSelectedUnits(initValue);
+        setAvailableUnits(candidates.filter(u => !initValue.includes(u.value)));
         setSearchAllText('');
         setSearchSelectedText('');
     }
@@ -111,7 +112,7 @@ const multiSelectModal = NiceModal.create(({ candidates, value }: MultiSelectMod
     );
 
     return (
-        <Modal isOpen={modal.visible} onClose={modal.hide} size="xl">
+        <Modal isOpen={modal.visible} onClose={handleClose} size="xl">
             <ModalOverlay />
             <ModalContent>
                 <ModalHeader>选择</ModalHeader>

@@ -23,6 +23,9 @@ import { useEffect, useState } from 'react';
 import { AreaInfo } from '@/interfaces/Account';
 import { Checkbox } from '../../components/ui/checkbox';
 import { toaster } from '../../components/ui/toaster';
+import { getErrorDescription } from './Config';
+import { busyAccountsRef, BATCH_RUNNER } from './accountShared';
+import { clearAreaConfigCache } from './Area';
 
 interface ConfigSyncModalProps {
     sourceAccount: string;
@@ -52,7 +55,7 @@ export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSy
                 try {
                     // 1. Get All Accounts
                     const userInfo = await getUserInfo();
-                    const accounts = userInfo?.accounts?.map(acc => acc.name).filter(name => name !== sourceAccount) || [];
+                    const accounts = userInfo?.accounts?.map(acc => acc.name).filter(name => name !== sourceAccount && name !== BATCH_RUNNER) || [];
                     setAllAccounts(accounts);
                     
                     // 2. Get Config Areas from Source Account
@@ -65,7 +68,7 @@ export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSy
                     setSelectedDailyModules(presetDailyModules || []);
 
                 } catch (err) {
-                    toaster.create({ type: 'error', title: '获取数据失败', description: String(err) });
+                    toaster.create({ type: 'error', title: '获取数据失败', description: await getErrorDescription(err) });
                 } finally {
                     setIsLoadingData(false);
                 }
@@ -93,7 +96,7 @@ export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSy
                     setSelectedDailyModules(allModuleKeys);
                     setSelectedAreas(prev => [...prev, key]);
                 } catch (err) {
-                    toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
+                    toaster.create({ type: 'error', title: '获取日常模块失败', description: await getErrorDescription(err) });
                 }
             } else {
                 setSelectedAreas(prev => prev.filter(k => k !== key));
@@ -129,7 +132,7 @@ export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSy
                     const allModuleKeys = Object.keys(moduleRes.info || {});
                     setSelectedDailyModules(allModuleKeys);
                 } catch (err) {
-                    toaster.create({ type: 'error', title: '获取日常模块失败', description: String(err) });
+                    toaster.create({ type: 'error', title: '获取日常模块失败', description: await getErrorDescription(err) });
                     return;
                 }
             }
@@ -146,6 +149,16 @@ export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSy
         if (selectedAreas.includes("daily") && selectedDailyModules.length === 0) {
             toaster.create({ type: 'warning', title: '请至少选择一个日常模块' });
             return;
+        }
+
+        // 忙碌互斥：执行中的目标跳过（与清理/导入/删除同一互斥源），防同步 PUT 与在跑动作并发打后端
+        const freeTargets = selectedTargets.filter((t) => !busyAccountsRef.has(t));
+        if (freeTargets.length === 0) {
+            toaster.create({ type: 'warning', title: '请等待执行完毕', description: '所选目标账号都正在执行中' });
+            return;
+        }
+        if (freeTargets.length < selectedTargets.length) {
+            toaster.create({ type: 'info', title: `配置同步：已跳过 ${selectedTargets.length - freeTargets.length} 个正在执行中的账号` });
         }
 
         setIsSyncing(true);
@@ -185,11 +198,18 @@ export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSy
             }
 
             // Push to targets
-            // Sequentially to avoid overwhelming if many
-            for (const targetAccount of selectedTargets) {
+            // Sequentially to avoid overwhelming if many（PUT 前逐个复查忙碌：源配置拉取期间目标可能开始执行）
+            let skipCount = 0;
+            for (const targetAccount of freeTargets) {
                  try {
+                     if (busyAccountsRef.has(targetAccount)) {
+                         skipCount++; // 忙碌=跳过不是失败：与入口预过滤同一口径，不谎报失败让用户白排查
+                         continue;
+                     }
                      if (Object.keys(mergedConfig).length > 0) {
                          await putAccountConfigs(targetAccount, mergedConfig);
+                         // 失效目标账号的 Area 配置缓存：详情页/Picker 不再显示同步前旧值、不再以旧值回写冲掉刚同步的配置
+                         clearAreaConfigCache(targetAccount);
                      }
                      successCount++;
                  } catch (e) {
@@ -199,14 +219,15 @@ export default NiceModal.create(({ sourceAccount, presetDailyModules }: ConfigSy
             }
             
             if (failCount === 0) {
-                toaster.create({ type: 'success', title: `成功同步到 ${successCount} 个账号` });
+                const skipNote = skipCount > 0 ? `，跳过(执行中): ${skipCount}` : '';
+                toaster.create({ type: 'success', title: `成功同步到 ${successCount} 个账号${skipNote}` });
                 modal.hide();
             } else {
-                toaster.create({ type: 'warning', title: `同步部分完成`, description: `成功: ${successCount}, 失败: ${failCount}` });
+                toaster.create({ type: 'warning', title: `同步部分完成`, description: `成功: ${successCount}, 失败: ${failCount}${skipCount > 0 ? `, 跳过: ${skipCount}` : ''}` });
             }
 
         } catch (err: any) {
-            toaster.create({ type: 'error', title: '同步过程中发生错误', description: err?.message || String(err) });
+            toaster.create({ type: 'error', title: '同步过程中发生错误', description: await getErrorDescription(err) });
         } finally {
             setIsSyncing(false);
         }

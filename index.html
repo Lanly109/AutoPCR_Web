@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AutoPCR</title>
+    <style>
+      /* 恒定保留文档级滚动条槽位：弹层（日程通知面板等）开合时页面宽度不再抖动 */
+      html {
+        scrollbar-gutter: stable;
+        overflow-y: scroll;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
