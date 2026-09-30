@@ -23,6 +23,8 @@ jobs:
 
     - name: Install dependencies
       uses: wyvox/action-setup-pnpm@v3
+      with:
+        pnpm-version: 9
 
     - name: Build React App
       run: pnpm run build
