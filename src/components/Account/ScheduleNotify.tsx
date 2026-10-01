@@ -36,13 +36,26 @@ export interface ScheduleNotifyPrefs {
 
 const DEFAULT_PREFS: ScheduleNotifyPrefs = { enabled: false, categories: [], notifyTime: '08:00' };
 
+/** 旧类别名 → 新类别名（口径调整后旧存档不静默失效）：女神祭并入季卡；季卡驾车游拆回季卡+驾车游 */
+const LEGACY_CATEGORY_MAP: Record<string, string[]> = {
+    '女神祭': ['季卡'],
+    '季卡驾车游': ['季卡', '驾车游'],
+};
+
 export function loadSchedulePrefs(): ScheduleNotifyPrefs {
     try {
         const raw = safeGetItem(PREFS_KEY);
         const parsed = raw ? (JSON.parse(raw) as Partial<ScheduleNotifyPrefs>) : null;
+        const stored = Array.isArray(parsed?.categories) ? parsed.categories.filter((x): x is string => typeof x === 'string') : [];
+        const categories: string[] = [];
+        for (const c of stored) {
+            for (const mapped of LEGACY_CATEGORY_MAP[c] ?? [c]) {
+                if (!categories.includes(mapped)) categories.push(mapped);
+            }
+        }
         return {
             enabled: !!parsed?.enabled,
-            categories: Array.isArray(parsed?.categories) ? parsed.categories.filter((x): x is string => typeof x === 'string') : [],
+            categories,
             notifyTime: typeof parsed?.notifyTime === 'string' && /^\d{2}:\d{2}$/.test(parsed.notifyTime) ? parsed.notifyTime : DEFAULT_PREFS.notifyTime,
         };
     } catch {
@@ -74,11 +87,12 @@ function todayStr(): string {
     return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`;
 }
 
-/** 全部类别的固定清单与展示顺序（面板勾选区固定全量显示，与数据有无无关） */
+/** 全部类别的固定清单与展示顺序（面板勾选区固定全量显示，与数据有无无关；排序为用户裁决） */
 const CATEGORY_ORDER = [
-    '活动', '女神祭', '庆典', '扭蛋', '免费十连',
-    '公会战', '特别地下城', '新斗技场', '季卡驾车游',
-    '露娜塔', '次元断层', '深渊讨伐战', '赛马',
+    '深渊讨伐战', '新斗技场',
+    '公会战', '活动', '扭蛋', '庆典',
+    '免费十连', '赛马', '季卡', '驾车游',
+    '特别地下城', '次元断层',
 ];
 
 function categorySortIndex(c: string): number {
@@ -99,17 +113,14 @@ function shortDate(d: string): string {
 }
 
 /** 拉取日程（后端未部署 /schedule 时 fetch 404 → 抛错由调用方静默） */
-/** 后端条目归一化：女神祭从「活动」拆为独立类别；丢弃纯噪声（玩家经验值加成/公会战排名公示——类别也不出现在面板）；fes 扭蛋折叠 */
+/** 后端条目归一化：女神祭并入季卡；丢弃纯噪声（玩家经验值加成/公会战排名公示——类别也不出现在面板）；fes 扭蛋折叠 */
 function normalizeEntry(e: ScheduleEntry): ScheduleEntry | null {
     if (isNoiseEntry(e)) return null;
     // 类别删除（用户裁决）：斗技场/登录奖励不再出现
     if (e.category === '斗技场' || e.category === '登录奖励') return null;
-    // 驾车游并入季卡（用户裁决：季卡与驾车游是同一个东西）
-    if (e.category === '季卡' || e.category === '驾车游') {
-        return { ...e, category: '季卡驾车游' };
-    }
+    // 女神祭并入季卡（用户裁决）：无需后端配合——「从活动拆出」本就是前端口径，现在改归季卡
     if (e.category === '活动' && /女神祭/.test(e.description)) {
-        return { ...e, category: '女神祭' };
+        return { ...e, category: '季卡' };
     }
     // 扭蛋名单折叠（用户裁决）：fes| 前缀（gacha_name 含 フェス/FES 的池）→ up 首人 fes扭蛋；
     // 普通池 up 名单 → 只显前两名，其余计「……等N人」
@@ -376,13 +387,17 @@ export function ScheduleNotifySettings() {
                             <HStack gap={3}>
                                 <Checkbox
                                     checked={prefs.enabled}
-                                    onCheckedChange={async (details) => {
+                                    onCheckedChange={(details) => {
                                         const next = !!details.checked;
                                         if (next && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                                            // 不 await 权限请求：浏览器权限气泡期间 await 挂着、勾选框不动，
+                                            // 用户没注意到气泡时「开启」就像卡死（关闭不弹权限所以秒回）。
+                                            // 勾选立即回显；权限结果由通知触发时再查（未授权走 console 降级）
                                             try {
-                                                await Notification.requestPermission();
+                                                const p = Notification.requestPermission() as unknown as Promise<unknown> | undefined;
+                                                p?.catch?.(() => {});
                                             } catch {
-                                                // 未授权期间仅面板常驻可见
+                                                // 老浏览器回调式 API：忽略，通知触发时再降级
                                             }
                                         }
                                         setPrefs((prev) => ({ ...prev, enabled: next }));

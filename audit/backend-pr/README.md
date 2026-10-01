@@ -43,8 +43,8 @@ Discord 讨论定案：半月刊（half_schedule, `autopcr/module/modules/nologi
 - GET /daily/api/schedule → ScheduleEntry[]（vite proxy 指向真后端即自动生效，前端零改动）
 - ScheduleNotifyWatcher（挂 _sidebar）+ 面板（DashBoard 工具栏）：
   - 展示口径：end_time > 今天 的条目；噪声过滤（玩家经验值加成、公会战排名公示整类）
-  - 类别：固定清单 13 类（活动/女神祭/庆典/扭蛋/免费十连/公会战/特别地下城/新斗技场/季卡驾车游/露娜塔/次元断层/深渊讨伐战/赛马）；
-    驾车游并入季卡、斗技场/登录奖励前端不显示；女神祭由 description 含「女神祭」从活动拆出
+  - 类别：固定清单 12 类（深渊讨伐战/新斗技场/公会战/活动/扭蛋/庆典/免费十连/赛马/季卡/驾车游/特别地下城/次元断层）；
+    斗技场/登录奖励前端不显示；女神祭（description 含「女神祭」的活动条目）并入季卡
   - 扭蛋折叠：description 带 fes| 前缀（= gacha_name 含 フェス/FES，由后端 schedule_entries 织入）→「up 首人 fes扭蛋」；
     普通长名单 →「up 前两名……等N人」
 - 通知：勾选类别条目 start_time == 今天 且到设定时刻 → 浏览器通知（每 key 当天一次，localStorage 已读 90 天自清理）
