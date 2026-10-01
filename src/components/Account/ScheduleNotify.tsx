@@ -282,6 +282,9 @@ export function ScheduleNotifySettings() {
     const [entries, setEntries] = useState<ScheduleEntry[]>(() => scheduleCache ?? []);
     const [loadFailed, setLoadFailed] = useState(false);
     const scrollBodyRef = useSeamlessScrollRelay();
+    // 面板高度上限：不能只按 70vh 算——面板从工具栏按钮下方展开，起点偏下时 70vh 会超出窗口底，
+    // 把页面顶出滚动条。打开时量「按钮底到窗口底的剩余空间」，与 70vh 取小
+    const [panelMaxH, setPanelMaxH] = useState('70vh');
 
     useEffect(() => {
         saveSchedulePrefs(prefs);
@@ -345,6 +348,11 @@ export function ScheduleNotifySettings() {
                     color="orange.500"
                     _hover={{ bg: 'orange.subtle' }}
                     title="半月刊日程通知：勾选关注的类别，开启日当天按设定时刻提醒；面板内常驻显示进行中的日程"
+                    onClick={(e) => {
+                        const bottom = (e.currentTarget as HTMLElement).getBoundingClientRect().bottom;
+                        const avail = window.innerHeight - bottom - 12; // gutter + 余量
+                        setPanelMaxH(`${Math.round(Math.min(window.innerHeight * 0.7, Math.max(220, avail)))}px`);
+                    }}
                 >
                     <FiBell />
                     <Text color="orange.500" css={{ cursor: 'pointer', userSelect: 'none' }}>
@@ -353,7 +361,7 @@ export function ScheduleNotifySettings() {
                 </Box>
             </Popover.Trigger>
             <Popover.Positioner>
-                <Popover.Content width="340px" maxH="70vh" display="flex" flexDirection="column" overflow="hidden" zIndex={1400}>
+                    <Popover.Content width="340px" maxH={panelMaxH} display="flex" flexDirection="column" overflow="hidden" zIndex={1400}>
                     <Popover.Body ref={scrollBodyRef} p={3} overflowY="auto" flex="1 1 auto" minH="0">
                         <Stack gap={3}>
                             {/* 进行中（勾选类别）常驻区——唯一滚动区 */}
