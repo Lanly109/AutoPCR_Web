@@ -11,7 +11,7 @@ import {
     Table,
     Text,
 } from '@chakra-ui/react';
-import { FiBook, FiCheck, FiGrid, FiKey, FiLayers, FiList, FiPlus, FiStar, FiTarget, FiUpload, FiUserMinus, FiUserPlus, FiUserX } from 'react-icons/fi';
+import { FiBook, FiCheck, FiGrid, FiKey, FiList, FiPlus, FiStar, FiTarget, FiUpload, FiUserMinus, FiUserPlus, FiUserX } from 'react-icons/fi';
 import React, { ChangeEvent, useMemo, useRef } from 'react';
 import { Skeleton, SkeletonText } from '../../components/ui/skeleton';
 import { clearAccounts, delAccount, deleteAccount, getAccount, getAccountConfig, getUserInfo, postAccount, postAccountAreaSingle, postAccountImport, putUserInfo } from '@api/Account';
@@ -24,7 +24,6 @@ import { AxiosError } from 'axios';
 import { Checkbox } from '../../components/ui/checkbox';
 import { IconButton } from '../../components/ui/icon-button';
 import { Route as LoginRoute } from '@routes/daily/login';
-import { Route as DashBoardRoute } from '@routes/daily/_sidebar/account/index';
 import NiceModal from '@ebay/nice-modal-react';
 import ReadmeModal from './ReadmeModal';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -596,20 +595,6 @@ export function DashBoard() {
                         loading={busyAccounts.size > 0}
                     >
                         <FiTarget /> 清理全部日常
-                    </Button>
-                    <Button
-                        size="sm"
-                        px={textFitPadding('批量运行')}
-                        colorPalette="blue"
-                        variant="ghost"
-                        borderWidth="1px"
-                        borderColor="currentColor"
-                        title="配置后端定时批量任务（BATCH_RUNNER）运行哪些账号"
-                        onClick={() => {
-                            void navigate({ to: `${DashBoardRoute.to || ''}${encodeURIComponent(BATCH_RUNNER)}` as any });
-                        }}
-                    >
-                        <FiLayers /> 批量运行
                     </Button>
                 </HStack>
 

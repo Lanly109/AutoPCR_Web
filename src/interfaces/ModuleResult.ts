@@ -49,4 +49,4 @@ export interface ModuleResult {
 	table: iTableResult;
 }
 
-export type ModuleResultStatus = "成功" | "错误" | "中止" | "跳过";
+export type ModuleResultStatus = "成功" | "错误" | "警告" | "致命" | "中止" | "跳过";

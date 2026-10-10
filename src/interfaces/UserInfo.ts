@@ -98,7 +98,7 @@ export interface ResultInfo {
   /**
    * 结果状态
    */
-  status: "成功" | "警告" | "错误" | '跳过' | '中止';
+  status: "成功" | "警告" | "错误" | '跳过' | '中止' | '致命';
 }
 
 export interface LoginLog {

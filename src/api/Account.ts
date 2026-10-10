@@ -3,6 +3,7 @@ import { API } from '@api/APIUtils';
 import { AccountResponse, ValidateResponse, RunningStatusResponse } from '@interfaces/Account';
 import { DefaultResponse } from '@interfaces/DefaultResponse';
 import { ConfigValue, ModuleResponse } from '@interfaces/Module';
+import { ClanPrepResponse } from '@interfaces/ClanPrep';
 import {AccountInfo, ResultInfo, RoleInfo, UserInfo, UserInfoResponse} from '@interfaces/UserInfo';
 import {useEffect, useState} from "react";
 
@@ -248,6 +249,15 @@ export async function getAccountAreaSingleResult(alias: string, module: string, 
     const imageUrl = window.URL.createObjectURL(response.data as Blob);
     return imageUrl
   }
+}
+
+export async function getClanPrep(alias: string, refresh = false, force = false) {
+  const params = [refresh || force ? 'refresh=1' : '', force ? 'force=1' : ''].filter(Boolean).join('&');
+  const response = await API.get<ClanPrepResponse>(
+    `/account/${alias}/clan_prep${params ? `?${params}` : ''}`,
+    { timeout: 2 * 60 * 1000, skipErrorHandler: true }
+  );
+  return response.data;
 }
 
 export async function getAllUsers() {
